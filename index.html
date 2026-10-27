@@ -11,6 +11,9 @@
      上次的畫面在 LINE SDK 載入前就先顯示；上次的身分憑證還有效就直接送出；頁面底部新增分頁列，切換頁面不必回聊天室點選單 -->
 <!-- v4.0（2026/10/26）：報名頁新增「專項課」分頁（單堂、依日期、據點／程度／專項篩選、成班進度、教練介紹、場地照片）；
      課程抵用金自動折抵（確認畫面可取消勾選）、我的報名顯示餘額；取消時選原因；專項課未成班 改報／抵用金／退款（須搭配 GAS v4.0） -->
+<!-- v4.4（2026/10/27）：課程抵用金也能折抵球敘（確認畫面可取消勾選，含租拍費；不夠的差額照一般付款）（須搭配 GAS v4.4） -->
+<!-- v4.3（2026/10/27）：球拍租借 — 球敘確認畫面每人可選租幾支（費用併入應繳）、我的報名開始前可改支數（減少的差額轉抵用金）；
+     球敘已付款：開始前 24 小時以前可自己取消（已付轉課程抵用金），24 小時內顯示可請客服換人（須搭配 GAS v4.3） -->
 <!-- v3.8（2026/10/25）：基本資料頁「我的家人」移到儲存按鈕前；選單「請假」改為「我的課程」（課表、每堂狀態、剩餘堂數）；我的報名的課程卡片與我的課程課表都能請假；
      舊連結 ?page=leave 改開我的報名（須搭配 GAS v3.8） -->
 <!-- v3.7.2（2026/10/23）：選單新增「我的資料」入口；我的報名頁底的文字連結改為按鈕
@@ -214,6 +217,12 @@
   .sg-filter .lab { font-size: 12px; color: var(--muted); font-weight: 600; margin: 0 0 4px 2px; }
   .cf-credit { display: flex; gap: 8px; align-items: center; font-size: 14px; padding: 10px 0; border-top: 1px solid #edf1ef; }
   .cf-credit input { accent-color: var(--green); width: 18px; height: 18px; margin: 0; flex: 0 0 auto; }
+  /* v4.3：租球拍支數 */
+  .rk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .rk button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--green); background: #fff; color: var(--green-dark); font-size: 17px; font-weight: 700; line-height: 1; padding: 0; }
+  .rk button:disabled { opacity: .35; }
+  .rk b { min-width: 16px; text-align: center; color: var(--text); font-size: 15px; }
+  .rk-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
   .why-opts { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
   .why-opts .chip { text-align: left; border-radius: 10px; }
 </style>
@@ -482,7 +491,7 @@
 const LIFF_ID = '2011932114-Fh1txi0y';          // 例：2001234567-AbCdEfGh
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEMw17w0AZ_-E_MrQq2kBamkGTpCVNa7VGEA8-R-IYCP4x-9Hf4L9w8WRdvRH2iz-a/exec';  // https://script.google.com/macros/s/…/exec
 const SHOW_ERROR_CODE = false;                    // 測試期間顯示錯誤代碼；上線後改為 false
-const OA_BASIC_ID = '@251nkmih';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
+const OA_BASIC_ID = '@xxxxxxx';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
 
 // ================================================================
 // 共用
@@ -538,6 +547,18 @@ function el(tag, attrs, children) {
   return n;
 }
 function money(n) { return 'NT$' + Number(n || 0).toLocaleString('en-US'); }
+/** v4.3：租球拍支數（－ n ＋）；onChange(新值) 回傳 false 時不變 */
+function racketStepper(value, max, onChange) {
+  let v = value;
+  const num = el('b', { text: String(v) });
+  const minus = el('button', { type: 'button', text: '－', 'aria-label': '少租一支' });
+  const plus = el('button', { type: 'button', text: '＋', 'aria-label': '多租一支' });
+  const sync = () => { num.textContent = String(v); minus.disabled = v <= 0; plus.disabled = v >= max; };
+  minus.addEventListener('click', () => { if (v > 0 && onChange(v - 1) !== false) { v -= 1; sync(); } });
+  plus.addEventListener('click', () => { if (v < max && onChange(v + 1) !== false) { v += 1; sync(); } });
+  sync();
+  return el('span', { class: 'rk' }, [el('span', { text: '租球拍' }), minus, num, plus, el('span', { text: '支' })]);
+}
 function normalizePhone(v) {
   let s = String(v || '').replace(/\D/g, '');
   if (s.length === 9 && s.charAt(0) === '9') s = '0' + s;
@@ -1511,7 +1532,7 @@ function gatherCourtCard(g, ct) {
   return el('div', { class: 'item' }, [
     el('div', { class: 't', text: ct.name }, [el('span', { class: 'badge', text: g.typeLabel })]),
     el('div', { class: 's', text: g.title }),
-    el('div', { class: 'm', text: g.fee ? money(g.fee) + '／人・先付款' : '免費' }),
+    el('div', { class: 'm', text: (g.fee ? money(g.fee) + '／人・先付款' : '免費') + (g.racket && g.racket.on ? '・可租球拍 ' + money(g.racket.fee) + '／支' : '') }), // v4.3
     ct.members.length ? el('div', { class: 'members' }, ct.members.map(memberChip)) : el('div', { class: 'note', style: 'margin-top:6px', text: '還沒有人報名，搶頭香！' }),
     note,
     el('div', { class: 'foot' }, [
@@ -1596,23 +1617,40 @@ function openConfirm(it, court, payload, pv) {
   const multi = pv.results.length > 1;
   const ids = pv.results.map((x) => x.id);
   banner('cfBanner', it.title + '\n' + (it.timeLabel || it.when || '') + (court ? '　' + court.name : '') + (multi ? '\n名額依勾選順序分配，請確認（以送出後的結果為準）：' : '\n請確認報名內容，按下方按鈕才會送出：'));
+  // v4.3：球拍租借（每人各自選；已報名的人合計不超過庫存，候補遞補時再看庫存）
+  const rk = it.kind === '球敘' && it.racket && it.racket.on ? it.racket : null;
+  const rkWant = {};
+  const rkLeft = rk ? (rk.left < 0 ? Infinity : rk.left) : 0;
+  const rkActive = () => pv.results.filter((x) => x.status === '已報名').reduce((a, x) => a + (rkWant[x.id] || 0), 0);
+  let paySum = () => {};
   pv.results.forEach((x) => {
     const tag = x.status === '已報名' ? el('span', { class: 'badge', text: '可報名' })
       : x.status === '候補' ? el('span', { class: 'badge wait', text: '進候補' })
         : el('span', { class: 'badge warn', text: '不報名' });
+    const step = rk && x.status && rk.max > 0 && (x.status === '候補' || rkLeft > 0) ? racketStepper(0, rk.max, (nv) => {
+      const before = rkWant[x.id] || 0;
+      if (x.status === '已報名' && nv > before && rkActive() + 1 > rkLeft) { toast('這場球拍只剩 ' + rkLeft + ' 支'); return false; }
+      rkWant[x.id] = nv;
+      paySum();
+      return true;
+    }) : null;
     list.appendChild(el('div', { class: 'plan' }, [
-      el('div', {}, [el('div', { style: 'font-weight:700', text: x.self ? '我' : x.name }), x.note ? el('div', { class: 'note warn', text: x.note }) : null]),
+      el('div', {}, [el('div', { style: 'font-weight:700', text: x.self ? '我' : x.name }), x.note ? el('div', { class: 'note warn', text: x.note }) : null, step ? el('div', { style: 'margin-top:6px' }, [step]) : null]),
       tag,
     ]));
   });
+  if (rk) list.appendChild(el('div', { class: 'note', style: 'padding:6px 0' , text: '球拍每支 ' + money(rk.fee) + '，不收押金；' + (rkLeft === Infinity ? '' : rkLeft > 0 ? '這場還有 ' + rkLeft + ' 支可租；' : '這場的球拍已租完；') + '開始前可在「我的報名」改支數。' }));
   // v3.7.2：籌備中課程先付首堂；候補暫不需付款
   const fee = it.kind === '課程' && it.preopen ? (Number(it.firstFee) || 0) : (Number(it.fee) || 0);
   const n = pv.results.filter((x) => x.status === '已報名').length;
   // v4.0：課程抵用金（付款人＝本人；確認畫面可取消勾選）
-  const bal = it.kind === '課程' && signupState.data ? Number(signupState.data.credit) || 0 : 0;
+  const bal = signupState.data ? Number(signupState.data.credit) || 0 : 0; // v4.4：球敘也能折抵
   let useCredit = bal > 0;
   const sumEl = el('div', { class: 'sum', text: money(fee * n) });
-  const paySum = () => { sumEl.textContent = money(Math.max(0, fee * n - (useCredit ? Math.min(bal, fee * n) : 0))); };
+  paySum = () => {
+    const rkFee = rk ? rkActive() * rk.fee : 0;
+    sumEl.textContent = money(Math.max(0, fee * n + rkFee - (useCredit ? Math.min(bal, fee * n + rkFee) : 0)));
+  };
   if (fee && n) list.appendChild(el('div', { class: 'plan' }, [el('div', { class: 'note', text: '應繳' + (it.kind === '課程' && it.preopen ? '首堂' : '') + (multi ? '（' + n + ' 人）' : '') }), sumEl]));
   if (fee && n && bal > 0) {
     const cb = el('input', { type: 'checkbox' });
@@ -1645,6 +1683,7 @@ function openConfirm(it, court, payload, pv) {
       payload.phone = phone;
     }
     if (bal > 0) payload.useCredit = useCredit; // v4.0
+    if (rk) payload.rackets = Object.assign({}, rkWant); // v4.3
     const r = await send(btn, payload, '送出中…');
     if (!r.ok) {
       // 手機格式或已綁定其他 LINE：留在確認畫面，錯誤顯示在手機欄（同一個 submissionId 可直接重送，GAS 只快取成功結果）
@@ -1693,6 +1732,7 @@ function signupDone(it, court, d) {
     }
     const lines = [who + it.title, it.timeLabel || it.when];
     if (court) lines.push('球面：' + court.name);
+    if (x.rackets) lines.push('租球拍 ' + x.rackets + ' 支（' + money(x.racketFee) + '，已含在應繳）'); // v4.3
     if (x.credit) lines.push('已用先前已付款項折抵 ' + money(x.credit));
     if (x.creditUsed) lines.push('已用課程抵用金折抵 ' + money(x.creditUsed)); // v4.0
     if (x.creditUsed && signupState.data) signupState.data.credit = Math.max(0, (Number(signupState.data.credit) || 0) - x.creditUsed);
@@ -1719,10 +1759,16 @@ function signupDone(it, court, d) {
       total += x.amount || 0;
       deadline = deadline || x.deadline;
       release = release || x.release;
-      lines.push('✓ ' + name + '：已報名' + (x.amount ? '（' + money(x.amount) + '）' : ''));
+      lines.push('✓ ' + name + '：已報名' + (x.amount ? '（' + money(x.amount) + (x.rackets ? '，含租拍 ' + x.rackets + ' 支' : '') + '）' : x.creditUsed ? '（抵用金付清）' : ''));
     } else if (x.status === '候補') lines.push('⏳ ' + name + '：候補第 ' + x.rank + ' 位');
     else lines.push('－ ' + name + '：未報名（' + x.note + '）');
   });
+  // v4.4：抵用金折抵合計（球敘多人報名時依勾選順序折抵）
+  const creditSum = results.reduce((a, x) => a + (x.creditUsed || 0), 0);
+  if (creditSum) {
+    lines.push('', '已用課程抵用金折抵 ' + money(creditSum));
+    if (signupState.data) signupState.data.credit = Math.max(0, (Number(signupState.data.credit) || 0) - creditSum);
+  }
   if (total > 0) {
     lines.push('');
     lines.push('合計應繳 ' + money(total) + (deadline ? '，請於 ' + deadline + ' 前完成付款。' : '。') + releaseText(release));
@@ -1778,7 +1824,7 @@ function renderMy(d, stale) {
   // v4.0：課程抵用金餘額、取消原因選項
   app.cancelWhy = d.cancelWhy || [];
   const cr = $('myCredit');
-  cr.textContent = d.credit > 0 ? '課程抵用金餘額 ' + money(d.credit) + '\n報名課程時自動折抵，不設到期日；想退現請點「聯絡客服」。' : '';
+  cr.textContent = d.credit > 0 ? '課程抵用金餘額 ' + money(d.credit) + '\n報名課程或球敘時自動折抵，不設到期日；想退現請點「聯絡客服」。' : '';
   cr.classList.toggle('hidden', !(d.credit > 0));
   if (!shown.length) {
     list.appendChild(el('div', { class: 'empty', text: myState.filter === 'all' ? '目前沒有進行中的報名' : personName(myState.filter) + '目前沒有進行中的報名' }));
@@ -1877,6 +1923,26 @@ function myCard(it, hours) {
     if (payWarn && it.deadline) extra.appendChild(el('div', { class: 'note warn', text: '付款期限 ' + it.deadline + (it.release ? '；' + it.release + ' 前仍未付款，名額將取消' : '') }));
   }
   if (it.single && it.status === '保留中') extra = el('div', { class: 'note', style: 'margin-top:4px', text: '這一堂未成班。' + (it.choice ? '目前選擇：' + it.choice : '尚未選擇（3 天內未選擇會自動轉為課程抵用金）') });
+  // v4.3：球敘 — 已付款可取消時說明抵用金；租球拍支數
+  let rkBox = null;
+  if (it.type === '球敘') {
+    const notes = [];
+    if (extra) notes.push(extra);
+    if (it.canCancel && it.cancelNote) notes.push(el('div', { class: 'note', style: 'margin-top:4px', text: it.cancelNote + '。' }));
+    if (it.racketEdit || it.rackets || it.racketNote) {
+      const label = el('span', { class: 'note', text: it.rackets ? '已租球拍 ' + it.rackets + ' 支（' + money(it.racketFee) + '）' : '沒有租球拍' });
+      const kids = [label];
+      if (it.racketNote) kids.push(el('span', { class: 'note', text: it.racketNote }));
+      else if (it.racketEdit && it.racketMax > 0 || (it.racketEdit && it.rackets)) {
+        const b = el('button', { class: 'act alt', type: 'button', text: it.rackets ? '改支數' : '租球拍' });
+        b.addEventListener('click', () => openRacketEdit(rkBox, it));
+        kids.push(b);
+      }
+      rkBox = el('div', { class: 'rk-row' }, kids);
+      notes.push(rkBox);
+    }
+    extra = notes.length ? el('div', {}, notes) : null;
+  }
   return el('div', { class: 'item' }, [
     el('div', { class: 't' }, [whoTag(it.who), el('span', { text: it.title }), statusBadge(it)]),
     el('div', { class: 's', text: it.when }),
@@ -2069,6 +2135,34 @@ function courseRow(x, who, hours) {
   ]);
 }
 
+/** v4.3：在卡片上改租拍支數（－ n ＋ 與 儲存） */
+function openRacketEdit(box, it) {
+  if (!box) return;
+  let want = it.rackets || 0;
+  const max = Math.max(it.rackets || 0, it.racketMax || 0);
+  const unit = Number(it.racketUnit) || 0;
+  const info = el('span', { class: 'note' });
+  const save = el('button', { class: 'act', type: 'button', text: '儲存' });
+  const showInfo = () => {
+    const diff = (want - (it.rackets || 0)) * unit;
+    info.textContent = diff > 0 ? '要再付 ' + money(diff) : diff < 0 ? (it.paid > 0 ? '已付的差額轉為課程抵用金' : '應繳減少 ' + money(-diff)) : '';
+    save.disabled = want === (it.rackets || 0);
+  };
+  const step = racketStepper(want, max, (nv) => { want = nv; showInfo(); return true; });
+  const cancel = el('button', { class: 'act alt', type: 'button', text: '取消', onclick: () => { const pg = readPage('my'); if (pg) renderMy(pg.data, false); else openMy(true); } });
+  save.addEventListener('click', async () => {
+    const r = await send(save, { action: 'racket', signupId: it.signupId, n: want }, '儲存中…');
+    if (!r.ok) return banner('myBanner', r.message, true);
+    if (r.data.my) { savePage('my', r.data.my); renderMy(r.data.my, false); } else await openMy(true);
+    banner('myBanner', (it.who && !it.who.self ? '【' + it.who.name + '】' : '') + it.title + '：租球拍改為 ' + r.data.n + ' 支' +
+      (r.data.credit ? '\n差額 ' + money(r.data.credit) + ' 已轉為課程抵用金。' : r.data.due ? '\n請補付 ' + money(r.data.due) + '。' : ''));
+  });
+  box.innerHTML = '';
+  box.appendChild(step);
+  box.appendChild(el('span', { style: 'display:flex;gap:6px;align-items:center;flex-wrap:wrap' }, [info, cancel, save]));
+  showInfo();
+}
+
 async function doCancel(btn, it) {
   let why = '';
   if ((app.cancelWhy || []).length && it.status !== '候補') {
@@ -2093,7 +2187,7 @@ function askWhy(it) {
     const go = $('btnWhyGo');
     go.disabled = true;
     $('whyTitle').textContent = '取消：' + (it.who && !it.who.self ? '【' + it.who.name + '】' : '') + it.title;
-    $('whyNote').textContent = (it.single && it.cancelNote ? it.cancelNote + '\n' : '') + '請告訴我們取消的原因（幫助我們安排更合適的時間）：';
+    $('whyNote').textContent = (it.cancelNote ? it.cancelNote + '\n' : '') + '請告訴我們取消的原因（幫助我們安排更合適的時間）：'; // v4.3：球敘已付也提示抵用金
     $('whyNote').style.whiteSpace = 'pre-line';
     app.cancelWhy.forEach((w) => {
       const b = el('button', { type: 'button', class: 'chip', text: w });
@@ -2298,7 +2392,7 @@ function renderUnformedSingle(d, who) {
   });
   body.appendChild(move);
   if (d.creditOn) {
-    const cr = el('div', { class: 'opt' }, [el('h3', { text: '課程抵用金' }), el('p', { text: money(d.paid) + ' 轉為課程抵用金，之後報名課程自動折抵，不設到期日；之後也可以申請退現。' })]);
+    const cr = el('div', { class: 'opt' }, [el('h3', { text: '課程抵用金' }), el('p', { text: money(d.paid) + ' 轉為課程抵用金，之後報名課程或球敘自動折抵，不設到期日；之後也可以申請退現。' })]);
     const cb = el('button', { class: 'act', type: 'button', text: '轉為抵用金' });
     cb.addEventListener('click', () => chooseUnformed(cb, '抵用金'));
     cr.appendChild(cb);
@@ -2324,7 +2418,7 @@ async function chooseUnformed(btn, choice, cls) {
   if (choice === '退款') return showDone('已申請退款', '退款 ' + money(r.data.refund) + '，客服會與你聯絡完成退款。', { next: myBtn });
   // v4.0：專項課
   app.optAt = 0;
-  if (choice === '抵用金') return showDone('已轉為課程抵用金', money(r.data.credit) + ' 已轉為課程抵用金，報名課程時會自動折抵。', { next: { label: '報名專項課', fn: () => openSignup('single') } });
+  if (choice === '抵用金') return showDone('已轉為課程抵用金', money(r.data.credit) + ' 已轉為課程抵用金，報名課程或球敘時會自動折抵。', { next: { label: '報名專項課', fn: () => openSignup('single') } });
   if (choice === '改報') return showDone('改報完成', r.data.title + '\n' + r.data.when + '\n已付款項已帶過去' + (r.data.due > 0 ? '，尚需補 ' + money(r.data.due) + (app.init.paymentInfo ? '\n' + app.init.paymentInfo : '') : '。') + (r.data.credit ? '\n多付的 ' + money(r.data.credit) + ' 已轉為課程抵用金。' : ''), { next: myBtn });
   showDone('轉班完成', r.data.title + '\n已付款項已帶到新班' + (r.data.due > 0 ? '，尚需繳 ' + money(r.data.due) + (app.init.paymentInfo ? '\n' + app.init.paymentInfo : '') : '。') + '\n成班後會通知開課日期與尾款。', { next: myBtn });
 }
