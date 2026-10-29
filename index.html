@@ -491,7 +491,7 @@
 const LIFF_ID = '2011932114-Fh1txi0y';          // 例：2001234567-AbCdEfGh
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEMw17w0AZ_-E_MrQq2kBamkGTpCVNa7VGEA8-R-IYCP4x-9Hf4L9w8WRdvRH2iz-a/exec';  // https://script.google.com/macros/s/…/exec
 const SHOW_ERROR_CODE = false;                    // 測試期間顯示錯誤代碼；上線後改為 false
-const OA_BASIC_ID = '@251nkmih';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
+const OA_BASIC_ID = '@xxxxxxx';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
 
 // ================================================================
 // 共用
@@ -1876,7 +1876,7 @@ function lessonsCard(box, info, title) {
 
 function statusBadge(it) {
   if (it.status === '候補') return el('span', { class: 'badge wait', text: '候補第 ' + it.rank + ' 位' });
-  if (it.status === '保留中') return el('span', { class: 'badge wait', text: it.choice === '順延' ? '順延中' : '未成班・待選擇' });
+  if (it.status === '保留中') return el('span', { class: 'badge wait', text: it.gatherHold ? (it.unformedGather ? '未成團・待選擇' : '已取消・待選擇') : it.choice === '順延' ? '順延中' : '未成班・待選擇' }); // v4.8：球敘
   if (it.classStatus === '籌備中') return el('span', { class: 'badge grey', text: '待成班' });
   if (it.single) return el('span', { class: 'badge', text: '已成班' }); // v4.0
   return el('span', { class: 'badge', text: '已報名' });
@@ -1924,6 +1924,7 @@ function myCard(it, hours) {
     if (payWarn && it.deadline) extra.appendChild(el('div', { class: 'note warn', text: '付款期限 ' + it.deadline + (it.release ? '；' + it.release + ' 前仍未付款，名額將取消' : '') }));
   }
   if (it.single && it.status === '保留中') extra = el('div', { class: 'note', style: 'margin-top:4px', text: '這一堂未成班。' + (it.choice ? '目前選擇：' + it.choice : '尚未選擇（3 天內未選擇會自動轉為課程抵用金）') });
+  if (it.gatherHold) extra = el('div', { class: 'note', style: 'margin-top:4px', text: (it.unformedGather ? '這場球敘報名人數不足，未能成團。' : '這場球敘取消了。') + '請選擇改報其他球敘、轉課程抵用金或退款（3 天內未選擇會自動轉為抵用金）。' }); // v4.8
   // v4.3：球敘 — 已付款可取消時說明抵用金；租球拍支數
   let rkBox = null;
   if (it.type === '球敘') {
@@ -2311,7 +2312,7 @@ $('gRefresh').addEventListener('click', () => { $('gRefresh').textContent = '更
 // ================================================================
 // 未成班：順延／轉班／退款（v3.2）
 // ================================================================
-const ufState = { signupId: '' };
+const ufState = { signupId: '', gather: false };
 
 async function openUnformed(signupId) {
   ufState.signupId = signupId || app.params.signup || '';
@@ -2328,6 +2329,7 @@ async function openUnformed(signupId) {
     return;
   }
   const who = d.who ? '【' + d.who + '】' : ''; // v3.7：家長替家人選擇
+  ufState.gather = !!d.gather; // v4.8：球敘未成團／取消
   if (d.single) return renderUnformedSingle(d, who);
   banner('ufBanner', who + d.title + ' 這一期人數不足、未能開班，很抱歉！\n' + (d.who ? '已付 ' : '你已付 ') + money(d.paid) + '，請選擇處理方式（未選擇時預設順延）。');
 
@@ -2375,16 +2377,18 @@ async function openUnformed(signupId) {
 /** v4.0：專項課未成班：改報其他堂／課程抵用金／退款 */
 function renderUnformedSingle(d, who) {
   const body = $('ufBody');
-  banner('ufBanner', who + d.title + (d.when ? '（' + d.when + '）' : '') + ' 報名人數不足、未能開課，很抱歉！\n' + (d.who ? '已付 ' : '你已付 ') + money(d.paid) + '，請選擇處理方式' + (d.creditOn ? '（' + (d.autoDays || 3) + ' 天內未選擇，會自動轉為課程抵用金）' : '') + '。');
-  const move = el('div', { class: 'opt' }, [el('h3', { text: '改報其他堂' }), el('p', { text: '已付款項直接帶過去；費用不同時，多的轉為課程抵用金、不足的補差額。' })]);
-  if (!d.options.length) move.appendChild(el('div', { class: 'note', text: '目前沒有可改報的專項課，可以先轉為抵用金，之後報名時折抵。' }));
+  const g = !!d.gather; // v4.8：球敘
+  const why = g ? (d.unformedGather ? ' 報名人數不足、未能成團，很抱歉！' : ' 取消了，很抱歉！') : ' 報名人數不足、未能開課，很抱歉！';
+  banner('ufBanner', who + d.title + (d.when ? '（' + d.when + '）' : '') + why + '\n' + (d.who ? '已付 ' : '你已付 ') + money(d.paid) + '，請選擇處理方式' + (d.creditOn ? '（' + (d.autoDays || 3) + ' 天內未選擇，會自動轉為課程抵用金）' : '') + '。');
+  const move = el('div', { class: 'opt' }, [el('h3', { text: g ? '改報其他球敘' : '改報其他堂' }), el('p', { text: '已付款項直接帶過去；費用不同時，多的轉為課程抵用金、不足的補差額。' + (g ? '有租球拍的話，依新場次的庫存保留。' : '') })]);
+  if (!d.options.length) move.appendChild(el('div', { class: 'note', text: g ? '目前沒有可改報的球敘，可以先轉為抵用金，之後報名時折抵。' : '目前沒有可改報的專項課，可以先轉為抵用金，之後報名時折抵。' }));
   d.options.forEach((o) => {
-    const b = el('button', { class: 'act alt', type: 'button', text: '改報這堂' });
+    const b = el('button', { class: 'act alt', type: 'button', text: g ? '改報這場' : '改報這堂' });
     b.addEventListener('click', () => chooseUnformed(b, '改報', o));
     const diff = (o.fee || 0) - (d.paid || 0);
     move.appendChild(el('div', { class: 'sub' }, [
       el('div', {}, [
-        el('div', { style: 'font-weight:700;color:var(--green-dark)', text: o.title + (o.level ? '（建議 ' + o.level + '）' : '') }),
+        el('div', { style: 'font-weight:700;color:var(--green-dark)', text: g ? o.title + (o.level && o.level !== o.title ? '（' + o.level + '）' : '') : o.title + (o.level ? '（建議 ' + o.level + '）' : '') }),
         el('div', { class: 'note', text: [o.when, o.venue, o.courtName].filter(Boolean).join('・') }),
         el('div', { class: 'note', text: '費用 ' + money(o.fee) + (diff > 0 ? '（補 ' + money(diff) + '）' : diff < 0 ? '（多的 ' + money(-diff) + ' 轉抵用金）' : '') + (o.formed ? '・已成班' : '') }),
       ]),
@@ -2410,7 +2414,7 @@ function renderUnformedSingle(d, who) {
 async function chooseUnformed(btn, choice, cls) {
   const confirmText = { 轉班: '確定轉班？', 退款: '確定退款？', 改報: '確定改報？', 抵用金: '確定轉抵用金？' }[choice] || '確定順延？';
   if (!armed(btn, confirmText)) return;
-  const r = await send(btn, { action: 'unformedChoose', submissionId: newId(), signupId: ufState.signupId, choice: choice, classId: cls ? cls.id : '' }, '處理中…');
+  const r = await send(btn, { action: 'unformedChoose', submissionId: newId(), signupId: ufState.signupId, choice: choice, classId: cls ? cls.id : '', gameId: ufState.gather && cls ? cls.id : '' }, '處理中…');
   if (!r.ok) return banner('ufBanner', r.message, true);
   if (r.data.my) savePage('my', r.data.my);
   delete app.mem.courses; // v3.10
@@ -2419,8 +2423,8 @@ async function chooseUnformed(btn, choice, cls) {
   if (choice === '退款') return showDone('已申請退款', '退款 ' + money(r.data.refund) + '，客服會與你聯絡完成退款。', { next: myBtn });
   // v4.0：專項課
   app.optAt = 0;
-  if (choice === '抵用金') return showDone('已轉為課程抵用金', money(r.data.credit) + ' 已轉為課程抵用金，報名課程或球敘時會自動折抵。', { next: { label: '報名專項課', fn: () => openSignup('single') } });
-  if (choice === '改報') return showDone('改報完成', r.data.title + '\n' + r.data.when + '\n已付款項已帶過去' + (r.data.due > 0 ? '，尚需補 ' + money(r.data.due) + (app.init.paymentInfo ? '\n' + app.init.paymentInfo : '') : '。') + (r.data.credit ? '\n多付的 ' + money(r.data.credit) + ' 已轉為課程抵用金。' : ''), { next: myBtn });
+  if (choice === '抵用金') return showDone('已轉為課程抵用金', money(r.data.credit) + ' 已轉為課程抵用金，報名課程或球敘時會自動折抵。', { next: ufState.gather ? { label: '報名球敘', fn: () => openSignup('gathering') } : { label: '報名專項課', fn: () => openSignup('single') } });
+  if (choice === '改報') return showDone('改報完成', r.data.title + '\n' + r.data.when + '\n已付款項已帶過去' + (r.data.due > 0 ? '，尚需補 ' + money(r.data.due) + (app.init.paymentInfo ? '\n' + app.init.paymentInfo : '') : '。') + (r.data.credit ? '\n多付的 ' + money(r.data.credit) + ' 已轉為課程抵用金。' : '') + (r.data.racketCut ? '\n新場次球拍不夠，少租 ' + r.data.racketCut + ' 支。' : ''), { next: myBtn });
   showDone('轉班完成', r.data.title + '\n已付款項已帶到新班' + (r.data.due > 0 ? '，尚需繳 ' + money(r.data.due) + (app.init.paymentInfo ? '\n' + app.init.paymentInfo : '') : '。') + '\n成班後會通知開課日期與尾款。', { next: myBtn });
 }
 
