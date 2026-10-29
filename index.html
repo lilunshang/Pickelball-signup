@@ -491,7 +491,7 @@
 const LIFF_ID = '2011932114-Fh1txi0y';          // 例：2001234567-AbCdEfGh
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEMw17w0AZ_-E_MrQq2kBamkGTpCVNa7VGEA8-R-IYCP4x-9Hf4L9w8WRdvRH2iz-a/exec';  // https://script.google.com/macros/s/…/exec
 const SHOW_ERROR_CODE = false;                    // 測試期間顯示錯誤代碼；上線後改為 false
-const OA_BASIC_ID = '@251nkmih';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
+const OA_BASIC_ID = '@xxxxxxx';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
 
 // ================================================================
 // 共用
@@ -1309,7 +1309,7 @@ function renderSingleTab() {
   const lv = ((app.init && app.init.student) || {}).程度;
   if (!lv) {
     list.appendChild(el('div', { class: 'banner' }, [
-      el('div', { text: '第一次來嗎？建議先參加一場球敘或新手場，認識環境、確認程度，再挑適合的專項課。' }),
+      el('div', { text: '第一次來嗎？完全沒打過建議先上新手體驗課；有基本入門可以參加新手友善球敘，認識環境、確認程度，再挑適合的專項課。' }),
       el('button', { class: 'act alt', type: 'button', style: 'margin-top:8px', text: '看看球敘', onclick: () => { signupState.tab = 'gathering'; signupState.venue = ''; signupState.time = ''; renderSignup(); } }),
     ]));
   }
@@ -1532,6 +1532,7 @@ function gatherCourtCard(g, ct) {
   return el('div', { class: 'item' }, [
     el('div', { class: 't', text: ct.name }, [el('span', { class: 'badge', text: g.typeLabel })]),
     el('div', { class: 's', text: g.title }),
+    g.typeDesc ? el('div', { class: 'note', style: 'margin-top:4px;white-space:pre-line', text: g.typeDesc }) : null, // v4.7：球敘類型說明
     el('div', { class: 'm', text: (g.fee ? money(g.fee) + '／人・先付款' : '免費') + (g.racket && g.racket.on ? '・可租球拍 ' + money(g.racket.fee) + '／支' : '') }), // v4.3
     ct.members.length ? el('div', { class: 'members' }, ct.members.map(memberChip)) : el('div', { class: 'note', style: 'margin-top:6px', text: '還沒有人報名，搶頭香！' }),
     note,
