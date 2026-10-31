@@ -20,6 +20,7 @@
      報名改為確認畫面（不再 3 秒內按兩下）；課程缺手機時在確認畫面填，和報名同一個請求送出（須搭配 GAS v3.7.2） -->
 <!-- v3.7.1（2026/10/21）：多人報名的確認畫面在手機上算（不多一個請求）、簽到 2 分鐘內沿用定位（須搭配 GAS v3.7.1） -->
 <!-- v3.7（2026/10/21）：家長代報名 — 報名對象、我的家人、我的報名篩選與待付合計、請假／簽到選家人、球敘頁標示家人、分享報名連結（須搭配 GAS v3.7） -->
+<!-- v4.9（2026/10/30）：第一次開啟加速 — 等 LINE 登入時先送預熱請求（伺服器先把表讀進快取）；載入畫面改成骨架＋目前進度（須搭配 GAS v4.9） -->
 <link rel="preconnect" href="https://script.google.com" crossorigin>
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <link rel="preconnect" href="https://api.line.me" crossorigin>
@@ -80,6 +81,17 @@
   .spinner { width: 36px; height: 36px; margin: 0 auto; border: 3px solid var(--green-light); border-top-color: var(--green);
     border-radius: 50%; animation: spin .9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  /* v4.9：載入骨架 */
+  .load-step { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); margin: 2px 0 14px; }
+  .load-step .spin-s { width: 14px; height: 14px; border: 2px solid var(--green-light); border-top-color: var(--green); border-radius: 50%; animation: spin .9s linear infinite; flex: 0 0 auto; }
+  .load-slow { font-size: 13px; color: var(--muted); margin: -6px 0 14px 22px; }
+  .sk { background: #fff; border: 1px solid #e3eae6; border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+  .sk i { display: block; height: 12px; border-radius: 6px; margin: 0 0 10px; background: linear-gradient(90deg, #edf2ef 25%, #f6f9f7 50%, #edf2ef 75%); background-size: 200% 100%; animation: sk 1.4s ease-in-out infinite; }
+  .sk i:last-child { margin-bottom: 0; }
+  .sk i.h { height: 16px; width: 45%; margin-bottom: 14px; }
+  .sk-tabs { height: 42px; border-radius: 999px; padding: 0; background: linear-gradient(90deg, #edf2ef 25%, #f6f9f7 50%, #edf2ef 75%); background-size: 200% 100%; animation: sk 1.4s ease-in-out infinite; border: 0; }
+  @keyframes sk { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+  @media (prefers-reduced-motion: reduce) { .sk i, .sk-tabs, .load-step .spin-s { animation: none; } }
   .check { width: 56px; height: 56px; margin: 0 auto; border-radius: 50%; background: var(--green); color: #fff; font-size: 30px; line-height: 56px; }
   .check.wait { background: #d9a441; }
   .hidden { display: none !important; }
@@ -235,10 +247,15 @@
   <span id="syncPill" class="hidden">更新中…</span>
 </header>
 
-<section id="viewLoading" class="center">
-  <div class="spinner"></div>
-  <p style="margin-top:14px">載入中…</p>
-</section>
+<main id="viewLoading" aria-busy="true">
+  <!-- v4.9：骨架畫面（第一次開啟要等 LINE 登入＋讀資料，先讓畫面有東西） -->
+  <p class="load-step"><span class="spin-s"></span><span id="loadText">載入中…</span></p>
+  <p id="loadSlow" class="load-slow hidden">第一次開啟需要比較久，之後就會很快</p>
+  <div class="sk sk-tabs"></div>
+  <div class="sk"><i class="h"></i><i style="width:85%"></i><i style="width:60%"></i></div>
+  <div class="sk"><i class="h"></i><i style="width:75%"></i><i style="width:50%"></i></div>
+  <div class="sk"><i class="h"></i><i style="width:80%"></i><i style="width:40%"></i></div>
+</main>
 <section id="viewError" class="center hidden">
   <div class="big">無法開啟</div>
   <p id="errorMsg">請關閉頁面後再試一次。</p>
@@ -491,7 +508,7 @@
 const LIFF_ID = '2011932114-Fh1txi0y';          // 例：2001234567-AbCdEfGh
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEMw17w0AZ_-E_MrQq2kBamkGTpCVNa7VGEA8-R-IYCP4x-9Hf4L9w8WRdvRH2iz-a/exec';  // https://script.google.com/macros/s/…/exec
 const SHOW_ERROR_CODE = false;                    // 測試期間顯示錯誤代碼；上線後改為 false
-const OA_BASIC_ID = '@251nkmih';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
+const OA_BASIC_ID = '@xxxxxxx';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
 
 // ================================================================
 // 共用
@@ -602,7 +619,17 @@ async function callGasOnce(payload, timeoutMs) {
   }
 }
 
+/** v4.9：載入畫面上的進度文字；等超過 6 秒加一行說明 */
+let loadSlowTimer = 0;
+function setLoadStep(text, slowHint) {
+  $('loadText').textContent = text || '載入中…';
+  clearTimeout(loadSlowTimer);
+  $('loadSlow').classList.add('hidden');
+  if (slowHint) loadSlowTimer = setTimeout(() => $('loadSlow').classList.remove('hidden'), 6000);
+}
+
 async function load(payload) {
+  setLoadStep('載入中…');
   show('viewLoading');
   let r;
   try { r = await callGas(payload); }
@@ -2608,6 +2635,15 @@ const BOOT_KEY = 'pb_boot310_';  // + userId：上次 init 的共用資料（學
 const BOOT_MAX_MS = 7 * 864e5;
 const TAB_VIEWS = { viewGathering: 'gathering', viewSignup: 'signup', viewMy: 'my', viewCourses: 'courses', viewProfile: 'profile' };
 
+/** v4.9：預熱請求（不帶身分、不等回應）；page／withOptions 要和 init 送的一致，伺服器才知道要讀哪些表 */
+const INIT_PAGES = ['my', 'leave', 'courses', 'gathering', 'unformed', 'checkin'];
+function warmUp(page, wantsOptions) {
+  try {
+    const pg = INIT_PAGES.indexOf(page) >= 0 ? page : '';
+    fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'warm', bundle: true, withOptions: !!wantsOptions, page: pg }), keepalive: true }).catch(() => {});
+  } catch (e) { /* 預熱失敗不影響開啟 */ }
+}
+
 function lsGet(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 空間不足或無痕模式：略過 */ } }
 function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* 略過 */ } }
@@ -2777,8 +2813,12 @@ async function main() {
   // ② LINE 登入：上次的 ID Token 還有效就先用它送 init，同時在背景做 liff.init
   const tok = firstHop ? '' : savedToken();
   if (tok) { app.idToken = tok; app.early = true; }
+  // v4.9：要等 LINE 登入 → 先叫伺服器把這一頁要用的表讀進快取，登入完送 init 時就不用再等讀表
+  if (!tok) warmUp(page, wantsOptions);
+  if (!drawn) setLoadStep('連接 LINE…', true);
   const liffP = initLiff();
   if (!tok && !(await liffP)) return;
+  if (!drawn) setLoadStep('讀取資料…', true);
   if (!tok) {
     const moved0 = app.params.page !== page; // 等 LINE 登入時已用分頁列換頁
     const tabParams = app.params;
