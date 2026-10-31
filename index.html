@@ -20,6 +20,7 @@
      報名改為確認畫面（不再 3 秒內按兩下）；課程缺手機時在確認畫面填，和報名同一個請求送出（須搭配 GAS v3.7.2） -->
 <!-- v3.7.1（2026/10/21）：多人報名的確認畫面在手機上算（不多一個請求）、簽到 2 分鐘內沿用定位（須搭配 GAS v3.7.1） -->
 <!-- v3.7（2026/10/21）：家長代報名 — 報名對象、我的家人、我的報名篩選與待付合計、請假／簽到選家人、球敘頁標示家人、分享報名連結（須搭配 GAS v3.7） -->
+<!-- v4.11（2026/11/1）：報名頁改版 — ① 地區 → ② 據點 → ③ 據點資訊卡（地點、地址＋地圖、交通、照片）＋期制課／專項課／球敘分頁；每張卡片直接「分享」；球敘改成每場一張摘要卡（時間、類型、費用、面數、名額），按「選擇球面」再選面（須搭配 GAS v4.11） -->
 <!-- v4.9（2026/10/30）：第一次開啟加速 — 等 LINE 登入時先送預熱請求（伺服器先把表讀進快取）；載入畫面改成骨架＋目前進度（須搭配 GAS v4.9） -->
 <link rel="preconnect" href="https://script.google.com" crossorigin>
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
@@ -168,6 +169,22 @@
   body.has-tabs main { padding-bottom: 88px; }
   body.has-tabs #toast { bottom: 78px; }
   h2.sec { font-size: 15px; color: var(--green-dark); margin: 16px 2px 8px; }
+  /* v4.11：報名頁 據點資訊卡、分頁數字、球敘卡片 */
+  .vcard { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-bottom: 12px; }
+  .vcard img { width: 100%; max-height: 170px; object-fit: cover; display: block; background: var(--green-light); }
+  .vcard .vb { padding: 12px 14px; }
+  .vcard .vn { font-size: 18px; font-weight: 800; color: var(--green-dark); }
+  .vcard .vl { display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: #333; margin-top: 6px; white-space: pre-line; }
+  .vcard .vl b { flex: 0 0 auto; color: var(--muted); font-weight: 600; }
+  .vcard .vl span { flex: 1 1 auto; }
+  .vcard .vl a { flex: 0 0 auto; color: var(--green); font-weight: 700; text-decoration: none; border: 1px solid var(--green); border-radius: 999px; padding: 1px 10px; font-size: 12px; }
+  .tabs button .n { font-size: 12px; font-weight: 600; margin-left: 5px; opacity: .75; }
+  .tabs button:disabled { opacity: .35; }
+  .item .acts { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+  .gcard .gt { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 0; }
+  .gcard .gt .tm { font-size: 17px; font-weight: 800; color: var(--green-dark); margin-right: 2px; }
+  .gcard .m { margin-top: 4px; }
+  .clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   /* v3.8：課程卡片內的堂次（我的報名：請假；我的課程：課表） */
   .sess { margin-top: 10px; border-top: 1px solid #edf1ef; }
   .sess .sh { font-size: 12px; color: var(--muted); font-weight: 600; margin: 8px 0 2px; }
@@ -422,14 +439,16 @@
 
 <!-- ============ 報名：據點 → 時間 → 球面 ============ -->
 <main id="viewSignup" class="hidden">
-  <div class="tabs">
-    <button type="button" id="tabClass" class="on">課程</button>
+  <!-- v4.11：① 地區 → ② 據點 → ③ 據點資訊＋期制課／專項課／球敘 -->
+  <div class="stale-note">顯示上次的資料，名額更新中…</div>
+  <div class="crumbs" id="crumbs"></div>
+  <div class="vcard hidden" id="venueCard"></div>
+  <div class="tabs hidden" id="signupTabs">
+    <button type="button" id="tabClass" class="on">期制課</button>
     <button type="button" id="tabSingle">專項課</button>
     <button type="button" id="tabGather">球敘</button>
   </div>
-  <div class="stale-note">顯示上次的資料，名額更新中…</div>
   <div class="who-bar hidden" id="whoBar"></div>
-  <div class="crumbs" id="crumbs"></div>
   <div id="signupBanner" class="banner hidden"></div>
   <div id="signupList"></div>
 </main>
@@ -520,7 +539,7 @@
 const LIFF_ID = '2011932114-Fh1txi0y';          // 例：2001234567-AbCdEfGh
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEMw17w0AZ_-E_MrQq2kBamkGTpCVNa7VGEA8-R-IYCP4x-9Hf4L9w8WRdvRH2iz-a/exec';  // https://script.google.com/macros/s/…/exec
 const SHOW_ERROR_CODE = false;                    // 測試期間顯示錯誤代碼；上線後改為 false
-const OA_BASIC_ID = '@251nkmih';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
+const OA_BASIC_ID = '@xxxxxxx';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
 
 // ================================================================
 // 共用
@@ -1158,17 +1177,18 @@ function toast(text) {
 }
 
 // ================================================================
-// 報名：① 據點 → ② 時間 → ③ 球面
+// 報名：v4.11 ① 地區 → ② 據點 → ③ 據點頁（期制課／專項課／球敘）
 // ================================================================
-const signupState = { tab: 'class', data: null, venue: '', time: '', only: '', who: [] }; // v3.7：who＝報名對象（學員ID）
+const signupState = { tab: 'class', data: null, region: '', venue: '', time: '', only: '', who: [] }; // v3.7：who＝報名對象（學員ID）
 
 /** v4.0：報名頁分頁（class 課程／single 專項課／gathering 球敘） */
 function tabOf(v) { return v === 'class' || v === 'single' ? v : 'gathering'; }
-function signupTitle() { return { class: '報名課程', single: '報名專項課', gathering: '報名球敘' }[signupState.tab] || '報名'; }
+function signupTitle() { const v = signupState.venue && venueById(signupState.venue); return v ? v.name : '報名'; } // v4.11
 function oneWho() { return signupState.tab !== 'gathering'; } // 課程、專項課一次一位
 
 async function openSignup(tab) {
-  signupState.tab = tabOf(tab); // v3：選單合併後預設球敘
+  signupState.tab = tabOf(tab); // v3：選單合併後預設球敘；v4.11：進到據點頁後先開這個分頁
+  signupState.region = '';
   signupState.venue = '';
   signupState.time = '';
   signupState.only = '';
@@ -1225,11 +1245,11 @@ function applyTarget(type, id, d) {
   if (it && it.single) signupState.tab = 'single'; // v4.0
   if (it) {
     signupState.venue = it.venueId;
-    signupState.time = it.timeKey;
+    signupState.region = regionOfVenue(venueById(it.venueId)); // v4.11
     signupState.only = it.id;
   } else {
+    signupState.region = '';
     signupState.venue = '';
-    signupState.time = '';
     signupState.only = '';
   }
   renderSignup();
@@ -1267,84 +1287,238 @@ async function reloadSignup() {
 function reopenSignup() { return reloadSignup(); }
 
 function itemsOfTab() {
-  if (signupState.tab === 'gathering') return signupState.data.gatherings;
-  const single = signupState.tab === 'single';
-  return (signupState.data.classes || []).filter((c) => !!c.single === single); // v4.0
+  if (signupState.tab === 'gathering') return itemsAt(signupState.venue, 'gathering');
+  return itemsAt(signupState.venue, signupState.tab === 'single' ? 'single' : 'class'); // v4.11：只看目前據點
+}
+
+// ================================================================
+// v4.11：報名頁 ① 地區 → ② 據點 → ③ 據點頁（據點資訊＋期制課／專項課／球敘），每張卡片直接分享
+// ================================================================
+const TAB_LABEL = { class: '期制課', single: '專項課', gathering: '球敘' };
+const TAB_ORDER = ['class', 'single', 'gathering'];
+
+function allSignupItems() {
+  const d = signupState.data || {};
+  return (d.classes || []).concat(d.gatherings || []);
+}
+function venueById(id) { return ((signupState.data || {}).venues || []).find((v) => v.id === id) || null; }
+function regionOfVenue(v) { return (v && v.region) || '其他地區'; }
+/** 某據點某分頁的項目（依時間排序） */
+function itemsAt(venueId, tab) {
+  const d = signupState.data || {};
+  const list = tab === 'gathering' ? (d.gatherings || []) : (d.classes || []).filter((c) => !!c.single === (tab === 'single'));
+  return list.filter((it) => it.venueId === venueId).slice().sort((a, b) => (a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0));
+}
+function countsAt(venueId) {
+  const c = {};
+  TAB_ORDER.forEach((k) => (c[k] = itemsAt(venueId, k).length));
+  return c;
+}
+function countsText(c) { return TAB_ORDER.filter((k) => c[k]).map((k) => TAB_LABEL[k] + ' ' + c[k]).join('・'); }
+function shareOf(it) { return { kind: it.kind, id: it.id, title: it.title, when: it.timeLabel || it.when, venue: it.venue }; }
+/** 「11/7（六） 08:00–10:00」→ 日期、時間 */
+function splitWhen(w) {
+  const s = String(w || '');
+  const i = s.indexOf(' ');
+  return i > 0 ? { date: s.slice(0, i), time: s.slice(i + 1) } : { date: s, time: '' };
 }
 
 function renderSignup() {
-  const isClass = signupState.tab === 'class';
-  $('tabClass').classList.toggle('on', isClass);
-  $('tabSingle').classList.toggle('on', signupState.tab === 'single');
-  $('tabGather').classList.toggle('on', signupState.tab === 'gathering');
-  $('pageTitle').textContent = signupTitle();
   banner('signupBanner', '');
-  renderWhoBar();
-  if (signupState.tab === 'single') return renderSingleTab(); // v4.0
   const list = $('signupList');
   list.innerHTML = '';
-  const items = itemsOfTab();
-  const venues = signupState.data.venues.filter((v) => items.some((it) => it.venueId === v.id));
-  const venueName = (id) => (signupState.data.venues.find((v) => v.id === id) || {}).name || '';
-  const times = groupTimes(items.filter((it) => it.venueId === signupState.venue));
-  if (signupState.venue && !venues.some((v) => v.id === signupState.venue)) signupState.venue = '';
-  if (signupState.time && !times.some((t) => t.key === signupState.time)) signupState.time = '';
+  const d = signupState.data || {};
+  const items = allSignupItems();
+  const venues = (d.venues || []).filter((v) => items.some((it) => it.venueId === v.id));
+  if (signupState.venue && !venues.some((v) => v.id === signupState.venue)) { signupState.venue = ''; signupState.only = ''; }
+  const regions = [];
+  venues.forEach((v) => { const r = regionOfVenue(v); if (regions.indexOf(r) < 0) regions.push(r); });
+  if (signupState.venue) signupState.region = regionOfVenue(venueById(signupState.venue));
+  if (signupState.region && regions.indexOf(signupState.region) < 0) signupState.region = '';
+  if (!signupState.venue && !signupState.region && regions.length === 1) signupState.region = regions[0];
+  const inRegion = venues.filter((v) => regionOfVenue(v) === signupState.region);
+  if (!signupState.venue && signupState.region && inRegion.length === 1) signupState.venue = inRegion[0].id;
 
   // 麵包屑
   const crumbs = $('crumbs');
   crumbs.innerHTML = '';
   const crumb = (text, fn) => crumbs.appendChild(fn ? el('button', { type: 'button', text: text, onclick: fn }) : el('span', { class: 'now', text: text }));
   const sep = () => crumbs.appendChild(el('span', { text: '›' }));
-  if (!signupState.venue) crumb('① 選擇據點');
+  const toRegions = regions.length > 1 ? () => { signupState.region = ''; signupState.venue = ''; signupState.only = ''; renderSignup(); } : null;
+  const toVenues = inRegion.length > 1 ? () => { signupState.venue = ''; signupState.only = ''; renderSignup(); } : null;
+  if (!signupState.region) crumb('① 選擇地區');
   else {
-    crumb(venueName(signupState.venue), () => { signupState.venue = ''; signupState.time = ''; signupState.only = ''; renderSignup(); });
-    sep();
-    if (!signupState.time) crumb('② 選擇時間');
-    else {
-      crumb((times.find((t) => t.key === signupState.time) || {}).label || '', () => { signupState.time = ''; signupState.only = ''; renderSignup(); });
-      sep();
-      crumb('③ 選擇球面');
-    }
+    if (regions.length > 1) { crumb(signupState.region, toRegions); sep(); }
+    if (!signupState.venue) crumb((regions.length > 1 ? '② ' : '① ') + '選擇據點');
+    else crumb((venueById(signupState.venue) || {}).name || '', toVenues);
   }
 
-  if (!items.length) {
-    list.appendChild(el('div', { class: 'empty', text: isClass ? '目前沒有開放報名的課程' : '近期沒有開放報名的球敘' }));
+  const atVenue = !!signupState.venue;
+  $('venueCard').classList.toggle('hidden', !atVenue);
+  $('signupTabs').classList.toggle('hidden', !atVenue);
+  $('pageTitle').textContent = signupTitle();
+  if (!atVenue) $('whoBar').classList.add('hidden');
+
+  if (!venues.length) {
+    list.appendChild(el('div', { class: 'empty', text: '目前沒有開放報名的課程或球敘。每月 25 日中午開放下個月的課表。' }));
     return;
   }
 
-  // ① 據點
-  if (!signupState.venue) {
-    if (venues.length === 1) { signupState.venue = venues[0].id; return renderSignup(); }
-    venues.forEach((v) => {
-      const n = groupTimes(items.filter((it) => it.venueId === v.id)).length;
-      list.appendChild(pickRow(v.name + (v.fav ? '　★' : ''), n + ' 個時段' + (v.fav ? '・常去' : ''), () => { signupState.venue = v.id; renderSignup(); }));
+  // ① 地區
+  if (!signupState.region) {
+    regions.forEach((r) => {
+      const vs = venues.filter((v) => regionOfVenue(v) === r);
+      const fav = vs.some((v) => v.fav);
+      list.appendChild(pickRow(r + (fav ? '　★' : ''), vs.map((v) => v.name).join('、'), () => { signupState.region = r; renderSignup(); }));
     });
     return;
   }
 
-  // ② 時間
-  if (!signupState.time) {
-    times.forEach((t) => {
-      const sub = isClass
-        ? t.items.map((c) => c.title).join('、')
-        : t.items.map((g) => g.title + '（' + g.typeLabel + '）').join('、');
-      const mine = t.items.some((it) => signupState.who.some((pid) => mineOf(it, pid)));
-      list.appendChild(pickRow(t.label, (mine ? '✓ 已報名・' : '') + sub, () => { signupState.time = t.key; renderSignup(); }));
+  // ② 據點
+  if (!atVenue) {
+    inRegion.forEach((v) => {
+      const sub = [v.place && v.place !== v.name ? v.place : '', countsText(countsAt(v.id))].filter(Boolean).join('｜');
+      list.appendChild(pickRow(v.name + (v.fav ? '　★' : ''), (v.fav ? '常去・' : '') + sub, () => { signupState.venue = v.id; signupState.only = ''; renderSignup(); }));
     });
     return;
   }
 
-  // ③ 球面
-  const group = times.find((t) => t.key === signupState.time);
-  const shown = signupState.only ? group.items.filter((it) => it.id === signupState.only) : group.items;
-  if (signupState.only && group.items.length > shown.length) {
-    list.appendChild(el('button', { class: 'link', type: 'button', style: 'margin:0 0 10px', text: '同時段還有其他' + (isClass ? '課程' : '球敘') + '，查看全部', onclick: () => { signupState.only = ''; renderSignup(); } }));
-  }
-  if (!isClass) list.appendChild(el('div', { class: 'note', style: 'margin:0 0 10px', text: '報名球敘後，您的 LINE 名稱與頭像將顯示在該場成員名單中。' }));
-  shown.forEach((it) => {
-    if (isClass) list.appendChild(classCourtCard(it));
-    else it.courts.forEach((ct) => list.appendChild(gatherCourtCard(it, ct)));
+  // ③ 據點頁
+  renderVenueCard(venueById(signupState.venue));
+  const c = countsAt(signupState.venue);
+  if (!c[signupState.tab]) signupState.tab = TAB_ORDER.find((k) => c[k]) || 'gathering';
+  [['class', 'tabClass'], ['single', 'tabSingle'], ['gathering', 'tabGather']].forEach(([k, id]) => {
+    const b = $(id);
+    b.classList.toggle('on', signupState.tab === k);
+    b.disabled = !c[k];
+    b.innerHTML = '';
+    b.appendChild(document.createTextNode(TAB_LABEL[k]));
+    b.appendChild(el('span', { class: 'n', text: String(c[k]) }));
   });
+  renderWhoBar();
+  if (signupState.tab === 'single') return renderSingleTab();
+  if (signupState.tab === 'class') return renderClassList();
+  return renderGatherList();
+}
+
+/** 據點資訊卡（照片、名稱、地點、地址＋地圖、交通） */
+function renderVenueCard(v) {
+  const box = $('venueCard');
+  box.innerHTML = '';
+  if (!v) return;
+  if (v.photo) {
+    const img = el('img', { src: v.photo, alt: v.name + ' 場地照片', loading: 'lazy', referrerpolicy: 'no-referrer' });
+    img.addEventListener('error', () => img.remove());
+    box.appendChild(img);
+  }
+  const line = (label, text, extra) => (text ? el('div', { class: 'vl' }, [el('b', { text: label }), el('span', { text: text }), extra || null]) : null);
+  const map = v.map ? el('a', { href: v.map, target: '_blank', rel: 'noopener', text: '地圖' }) : null;
+  box.appendChild(el('div', { class: 'vb' }, [
+    el('div', { class: 'vn', text: v.name }, [v.kind ? el('span', { class: 'badge', text: v.kind }) : null]),
+    v.place && v.place !== v.name ? line('地點', v.place) : null,
+    line('地址', v.address, map) || (map ? el('div', { class: 'vl' }, [el('b', { text: '地址' }), map]) : null),
+    line('交通', v.traffic),
+  ]));
+}
+
+/** 只看一筆（分享連結進來）時，上方的「看這個據點全部」 */
+function onlyBack(list, label) {
+  list.appendChild(el('button', { class: 'link', type: 'button', style: 'margin:0 0 10px', text: '‹ ' + label, onclick: () => { signupState.only = ''; renderSignup(); } }));
+}
+
+/** 期制課 */
+function renderClassList() {
+  const list = $('signupList');
+  let items = itemsAt(signupState.venue, 'class');
+  if (signupState.only && items.some((x) => x.id === signupState.only)) {
+    if (items.length > 1) onlyBack(list, '這個據點的全部期制課');
+    items = items.filter((x) => x.id === signupState.only);
+  }
+  if (!items.length) return list.appendChild(el('div', { class: 'empty', text: '這個據點目前沒有開放報名的期制課' }));
+  items.forEach((it) => list.appendChild(classCourtCard(it)));
+}
+
+/** 球敘：依日期列出每一場（摘要），按「選擇球面」再選面報名 */
+function renderGatherList() {
+  const list = $('signupList');
+  const items = itemsAt(signupState.venue, 'gathering');
+  if (signupState.only) {
+    const g = items.find((x) => x.id === signupState.only);
+    if (g) return renderGatherCourts(g, items.length > 1);
+    signupState.only = '';
+  }
+  if (!items.length) return list.appendChild(el('div', { class: 'empty', text: '這個據點近期沒有開放報名的球敘' }));
+  let day = '';
+  items.forEach((g) => {
+    const w = splitWhen(g.timeLabel || g.when);
+    if (w.date !== day) { day = w.date; list.appendChild(el('h2', { class: 'sec', text: w.date })); }
+    list.appendChild(gatherCard(g));
+  });
+}
+
+/** 球敘整場的報名人數／名額 */
+function gatherSeats(g) {
+  const courts = g.courts || [];
+  const count = typeof g.count === 'number' ? g.count : courts.reduce((a, ct) => a + (ct.count || 0), 0);
+  let seats = g.seats;
+  if (seats === undefined) seats = courts.some((ct) => !ct.cap) ? null : courts.reduce((a, ct) => a + ct.cap, 0);
+  const full = courts.length ? courts.every((ct) => ct.full) : false;
+  return { count: count, seats: seats, full: full };
+}
+/** 這場球敘的報名狀態（報名對象裡有人報了就顯示） */
+function gatherMineBadge(g) {
+  const hits = signupState.who.map((pid) => ({ pid: pid, m: mineOf(g, pid) })).filter((x) => x.m);
+  if (!hits.length) return null;
+  const solo = signupState.who.length === 1 && hits[0].pid === myId();
+  const wait = hits.every((x) => x.m.status === '候補');
+  return el('span', { class: 'badge' + (wait ? ' wait' : ''), text: solo ? (wait ? '候補中' : '已報名') : hits.map((x) => whoLabel(x.pid)).join('、') + (wait ? ' 候補中' : ' 已報名') });
+}
+function gatherFeeLine(g) {
+  const parts = [g.fee ? money(g.fee) + '／人' : '免費'];
+  if ((g.courts || []).length) parts.push(g.courts.length + ' 面');
+  if (g.racket && g.racket.on) parts.push('可租球拍 ' + money(g.racket.fee) + '／支');
+  else if (g.hostSeat === 0 && /自由|無場主/.test(g.typeLabel || '')) parts.push('自備球拍');
+  return parts.join('・');
+}
+
+function gatherCard(g) {
+  const w = splitWhen(g.timeLabel || g.when);
+  const typeName = g.typeLabel || g.title;
+  const s = gatherSeats(g);
+  const seatText = s.full ? '已額滿（可候補）' : '已報名 ' + s.count + (s.seats ? '／' + s.seats : '') + (s.seats ? '・剩 ' + Math.max(0, s.seats - s.count) + ' 位' : '');
+  const pick = el('button', { class: 'act' + (s.full ? ' alt' : ''), type: 'button', text: (g.courts || []).length > 1 ? '選擇球面' : s.full ? '排候補' : '報名' });
+  pick.addEventListener('click', () => { signupState.only = g.id; renderSignup(); window.scrollTo(0, 0); });
+  return el('div', { class: 'item gcard' }, [
+    el('div', { class: 'gt' }, [el('span', { class: 'tm', text: w.time || w.date }), el('span', { class: 'badge', text: typeName }), gatherMineBadge(g)]),
+    g.title && g.title !== typeName ? el('div', { class: 's', text: g.title }) : null,
+    el('div', { class: 'm', text: gatherFeeLine(g) }),
+    g.typeDesc ? el('div', { class: 'note clamp2', style: 'margin-top:6px', text: g.typeDesc }) : null,
+    el('div', { class: 'foot' }, [
+      el('span', { class: 'seat' + (s.full ? ' full' : ''), text: seatText }),
+      el('div', { class: 'acts' }, [shareButton(shareOf(g)), pick]),
+    ]),
+  ]);
+}
+
+/** 一場球敘：上方整場資訊，下面每一面報名 */
+function renderGatherCourts(g, hasOthers) {
+  const list = $('signupList');
+  if (hasOthers) onlyBack(list, '這個據點的全部球敘');
+  const typeName = g.typeLabel || g.title;
+  const s = gatherSeats(g);
+  list.appendChild(el('div', { class: 'item gcard ghead' }, [
+    el('div', { class: 'gt' }, [el('span', { class: 'tm', text: g.timeLabel || g.when }), gatherMineBadge(g)]),
+    el('div', { class: 's', text: typeName + (g.title && g.title !== typeName ? '・' + g.title : '') }),
+    el('div', { class: 'm', text: gatherFeeLine(g) + '・先付款' }),
+    g.typeDesc ? el('div', { class: 'note', style: 'margin-top:6px;white-space:pre-line', text: g.typeDesc }) : null,
+    el('div', { class: 'foot' }, [
+      el('span', { class: 'seat' + (s.full ? ' full' : ''), text: s.full ? '已額滿（可候補）' : '已報名 ' + s.count + (s.seats ? '／' + s.seats : '') }),
+      shareButton(shareOf(g)),
+    ]),
+  ]));
+  list.appendChild(el('div', { class: 'step', style: 'margin:14px 2px 8px', text: (g.courts || []).length > 1 ? '選擇球面' : '球面與名單' }));
+  list.appendChild(el('div', { class: 'note', style: 'margin:0 2px 10px', text: '報名後，您的 LINE 名稱與頭像會顯示在該面的成員名單中。' }));
+  (g.courts || []).forEach((ct) => list.appendChild(gatherCourtCard(g, ct)));
 }
 
 
@@ -1354,9 +1528,7 @@ function renderSignup() {
 signupState.sf = { venue: '', level: '', spec: '' };
 
 function renderSingleTab() {
-  const list = $('signupList');
-  list.innerHTML = '';
-  $('crumbs').innerHTML = '';
+  const list = $('signupList'); // v4.11：清畫面、麵包屑由 renderSignup 處理；只列目前據點
   const d = signupState.data;
   const all = itemsOfTab().slice().sort((a, b) => (a.sortKey < b.sortKey ? -1 : 1));
   const rule = d.singleRule || { min: 5, max: 6, days: 3, time: '12:00' };
@@ -1369,18 +1541,18 @@ function renderSingleTab() {
   if (!lv) {
     list.appendChild(el('div', { class: 'banner' }, [
       el('div', { text: '第一次來嗎？完全沒打過建議先上新手體驗課；有基本入門可以參加新手友善球敘，認識環境、確認程度，再挑適合的專項課。' }),
-      el('button', { class: 'act alt', type: 'button', style: 'margin-top:8px', text: '看看球敘', onclick: () => { signupState.tab = 'gathering'; signupState.venue = ''; signupState.time = ''; renderSignup(); } }),
+      el('button', { class: 'act alt', type: 'button', style: 'margin-top:8px', text: '看看球敘', onclick: () => { signupState.tab = 'gathering'; signupState.only = ''; renderSignup(); } }),
     ]));
   }
   if (!all.length) {
-    list.appendChild(el('div', { class: 'empty', text: '目前沒有開放報名的專項課。每月 25 日中午開放下個月的課表。' }));
+    list.appendChild(el('div', { class: 'empty', text: '這個據點目前沒有開放報名的專項課。每月 25 日中午開放下個月的課表。' }));
     return;
   }
   if (signupState.only) {
     const one = all.filter((x) => x.id === signupState.only);
     if (one.length) {
+      if (all.length > 1) onlyBack(list, '這個據點的全部專項課'); // v4.11
       one.forEach((it) => list.appendChild(singleCard(it)));
-      list.appendChild(el('button', { class: 'ghost', type: 'button', text: '看全部專項課', onclick: () => { signupState.only = ''; renderSignup(); } }));
       return;
     }
     signupState.only = '';
@@ -1409,7 +1581,7 @@ function renderSingleTab() {
   // 常去據點排前面
   const venueOrder = (d.venues || []).map((v) => v.id);
   venueOpts.sort((a, b) => venueOrder.indexOf(a.id) - venueOrder.indexOf(b.id));
-  row('據點', 'venue', venueOpts);
+  sf.venue = ''; // v4.11：已在據點頁，不再篩據點
   row('建議程度', 'level', levelOpts);
   row('專項', 'spec', specOpts);
   const shown = all.filter((x) => (!sf.venue || x.venueId === sf.venue) && (!sf.level || (x.levelId || '') === sf.level) && (!sf.spec || (x.specId || '') === sf.spec));
@@ -1443,7 +1615,7 @@ function singleCard(it) {
   const rows = [
     el('div', { class: 't', text: it.specName || it.title }, [it.level ? el('span', { class: 'badge', text: '建議 ' + it.level }) : null]),
     el('div', { class: 's', text: it.when }),
-    el('div', { class: 'm', text: [it.venue, it.courtName].filter(Boolean).join('・') + (it.address ? '\n' + it.address : ''), style: 'white-space:pre-line' }),
+    it.courtName ? el('div', { class: 'm', text: it.courtName }) : null, // v4.11：據點、地址、照片已在上方據點資訊卡
   ];
   if (it.specNote) rows.push(el('div', { class: 'note', style: 'margin-top:6px;white-space:pre-line;color:#444', text: it.specNote }));
   // 成班進度
@@ -1465,14 +1637,9 @@ function singleCard(it) {
       el('div', {}, [el('div', { class: 'cn', text: '教練 ' + c.name }), c.intro ? el('div', { class: 'ci', text: c.intro }) : null]),
     ]));
   }
-  if (it.venuePhoto) {
-    const img = el('img', { class: 'sg-photo', src: it.venuePhoto, alt: (it.venue || '') + ' 場地照片', loading: 'lazy', referrerpolicy: 'no-referrer' });
-    img.addEventListener('error', () => img.remove());
-    rows.push(img);
-  }
   rows.push(el('div', { class: 'foot' }, [
     el('span', { class: 'seat' + (it.full ? ' full' : ''), text: it.full ? '已額滿（可候補）' : '費用 ' + money(it.fee) }),
-    classSignupBtn(it),
+    el('div', { class: 'acts' }, [shareButton(shareOf(it)), classSignupBtn(it)]), // v4.11：直接分享
   ]));
   return el('div', { class: 'item sg-card' }, rows);
 }
@@ -1541,10 +1708,11 @@ function classCourtCard(it) {
     ? '籌備中：先付首堂 ' + money(it.firstFee) + '，成班後繳尾款（總計 ' + money(it.fee) + '）'
     : (it.fee ? '費用 ' + money(it.fee) : '');
   return el('div', { class: 'item' }, [
-    el('div', { class: 't', text: it.courtName || '球面' }, [it.tag ? el('span', { class: 'badge', text: it.tag }) : null]),
-    el('div', { class: 's', text: it.title }),
+    el('div', { class: 't', text: it.title }, [it.tag ? el('span', { class: 'badge', text: it.tag }) : null]), // v4.11：課名在前
+    el('div', { class: 's', text: [it.when, it.courtName].filter(Boolean).join('・') }),
     el('div', { class: 'm', text: [it.lessons ? it.lessons + ' 堂' : '', fee].filter(Boolean).join('・') }),
-    el('div', { class: 'foot' }, [el('span', { class: 'seat' + (it.full ? ' full' : ''), text: it.full ? '已額滿（可候補）' : '可報名' }), right]),
+    el('div', { class: 'foot' }, [el('span', { class: 'seat' + (it.full ? ' full' : ''), text: it.full ? '已額滿（可候補）' : '可報名' }),
+      el('div', { class: 'acts' }, [shareButton(shareOf(it)), right])]), // v4.11：直接分享
   ]);
 }
 
@@ -1590,10 +1758,7 @@ function gatherCourtCard(g, ct) {
   } else if (bad.length) notes.push(bad[0].e.note);
   const note = notes.length ? el('div', { class: 'note' + (bad.length ? ' warn' : ''), style: 'margin-top:6px;white-space:pre-line', text: notes.join('\n') }) : null;
   return el('div', { class: 'item' }, [
-    el('div', { class: 't', text: ct.name }, [el('span', { class: 'badge', text: g.typeLabel })]),
-    el('div', { class: 's', text: g.title }),
-    g.typeDesc ? el('div', { class: 'note', style: 'margin-top:4px;white-space:pre-line', text: g.typeDesc }) : null, // v4.7：球敘類型說明
-    el('div', { class: 'm', text: (g.fee ? money(g.fee) + '／人・先付款' : '免費') + (g.racket && g.racket.on ? '・可租球拍 ' + money(g.racket.fee) + '／支' : '') }), // v4.3
+    el('div', { class: 't', text: ct.name }), // v4.11：類型、費用、說明移到上方整場資訊
     ct.members.length ? el('div', { class: 'members' }, ct.members.map(memberChip)) : el('div', { class: 'note', style: 'margin-top:6px', text: '還沒有人報名，搶頭香！' }),
     note,
     el('div', { class: 'foot' }, [
@@ -1841,9 +2006,9 @@ function signupDone(it, court, d) {
     friendText: '付款期限、候補遞補與提醒都用 LINE 通知（家人的通知也會傳給你），加入官方帳號才收得到。' });
 }
 
-$('tabClass').addEventListener('click', () => { signupState.tab = 'class'; signupState.venue = ''; signupState.time = ''; signupState.only = ''; renderSignup(); });
+$('tabClass').addEventListener('click', () => { signupState.tab = 'class'; signupState.only = ''; renderSignup(); }); // v4.11：留在同一個據點
 $('tabSingle').addEventListener('click', () => { signupState.tab = 'single'; signupState.only = ''; renderSignup(); });
-$('tabGather').addEventListener('click', () => { signupState.tab = 'gathering'; signupState.venue = ''; signupState.time = ''; signupState.only = ''; renderSignup(); });
+$('tabGather').addEventListener('click', () => { signupState.tab = 'gathering'; signupState.only = ''; renderSignup(); });
 
 // ================================================================
 // 我的報名
@@ -2777,7 +2942,7 @@ function earlyRender(page) {
       const c = readOptionsCache();
       if (!c) return false;
       signupState.tab = tabOf(app.params.tab);
-      signupState.venue = ''; signupState.time = ''; signupState.only = '';
+      signupState.region = ''; signupState.venue = ''; signupState.time = ''; signupState.only = '';
       signupState.data = c;
       setStale(true);
       renderSignup();
