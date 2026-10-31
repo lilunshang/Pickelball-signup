@@ -307,6 +307,12 @@
       <div class="error-text">請填寫正確的手機號碼，例如 0912345678</div>
       <div class="hint">報名課程時需要（開班、尾款與退款聯絡）；只參加球敘可以不填。</div>
     </div>
+    <div class="field" data-field="性別">
+      <label class="title" for="p_gender">性別<span class="req hidden" id="p_genderReq">*</span></label>
+      <select id="p_gender"><option value="">請選擇</option></select>
+      <div class="error-text">請選擇性別</div>
+      <div class="hint">報名「女子球敘」時需要。</div>
+    </div>
     <div class="field" id="p_levelField">
       <label class="title" for="p_level">目前程度</label>
       <select id="p_level"></select>
@@ -366,6 +372,11 @@
       <input type="date" id="f_birth">
       <div class="error-text">請填寫生日</div>
       <div class="hint">兒童課程的年齡參考。</div>
+    </div>
+    <div class="field" data-field="f性別">
+      <label class="title" for="f_gender">性別<span class="req hidden" id="f_genderReq">*</span></label>
+      <select id="f_gender"><option value="">請選擇</option></select>
+      <div class="error-text">請選擇性別</div>
     </div>
     <div class="field" id="f_levelField">
       <label class="title" for="f_level">程度（自評）</label>
@@ -438,6 +449,7 @@
 <!-- ============ 球敘頁：成員、輪轉表、積分榜 ============ -->
 <main id="viewGathering" class="hidden">
   <div class="stale-note">顯示上次的資料，更新中…</div>
+  <div id="gCheckin"></div><!-- v4.9：圖文選單「簽到」：上方簽到、下方今日球敘 -->
   <div class="item">
     <div class="t" id="gTitle"></div>
     <div class="s" id="gWhen"></div>
@@ -478,7 +490,7 @@
 <div id="toast" class="hidden"></div>
 <!-- v3.10：分頁列（切換頁面不必回聊天室點選單；資料開頁時已帶齊） -->
 <nav id="tabbar" class="tabbar hidden">
-  <button type="button" data-tab="gathering">今日球敘</button>
+  <button type="button" data-tab="gathering">簽到</button>
   <button type="button" data-tab="signup">報名</button>
   <button type="button" data-tab="my">我的報名</button>
   <button type="button" data-tab="courses">我的課程</button>
@@ -508,7 +520,7 @@
 const LIFF_ID = '2011932114-Fh1txi0y';          // 例：2001234567-AbCdEfGh
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEMw17w0AZ_-E_MrQq2kBamkGTpCVNa7VGEA8-R-IYCP4x-9Hf4L9w8WRdvRH2iz-a/exec';  // https://script.google.com/macros/s/…/exec
 const SHOW_ERROR_CODE = false;                    // 測試期間顯示錯誤代碼；上線後改為 false
-const OA_BASIC_ID = '@251nkmih';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
+const OA_BASIC_ID = '@xxxxxxx';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
 
 // ================================================================
 // 共用
@@ -834,12 +846,13 @@ function openWelcome(next) {
 // 基本資料
 // ================================================================
 let profileNext = null;
-const profileState = { submissionId: newId(), needDupr: false, needPhone: false };
+const profileState = { submissionId: newId(), needDupr: false, needPhone: false, needGender: false };
 
 function openProfile(nextPage, opts) {
   opts = opts || {};
   profileNext = nextPage || null;
   profileState.needDupr = !!opts.needDupr;
+  profileState.needGender = !!opts.needGender; // v4.9：女子球敘
   profileState.needPhone = !!opts.needPhone;
   $('p_phoneReq').classList.toggle('hidden', !profileState.needPhone);
   const d = app.init;
@@ -866,25 +879,37 @@ function openProfile(nextPage, opts) {
     cb.checked = fav.indexOf(v.id) >= 0;
     vbox.appendChild(el('label', {}, [cb, el('span', { text: v.name })]));
   });
+  fillGender($('p_gender'), s.性別); // v4.9
+  $('p_genderReq').classList.toggle('hidden', !profileState.needGender);
   $('p_duprD').value = s.DUPR雙打 || '';
   $('p_duprS').value = s.DUPR單打 || '';
   $('p_duprReq').classList.toggle('hidden', !profileState.needDupr);
-  if (profileState.needDupr) {
+  if (profileState.needGender) {
+    banner('profileBanner', '這場是女子球敘，請先選擇性別，儲存後會回到報名頁。', true);
+  } else if (profileState.needDupr) {
     banner('profileBanner', '這場是 DUPR 球敘，請先填寫 DUPR 雙打分數（自評），儲存後會回到報名頁。', true);
   } else if (profileState.needPhone) {
     banner('profileBanner', '報名課程需要手機號碼（開班、尾款與退款聯絡用），儲存後會回到報名頁。', true);
   } else {
     banner('profileBanner', d.student ? '更新你的聯絡資料。' : '第一次使用，請先填寫基本資料，之後報名就不用再填。');
   }
-  $('btnProfile').textContent = (!d.student || profileState.needDupr || profileState.needPhone) && nextPage && nextPage !== 'profile' ? '儲存並繼續' : '儲存';
+  $('btnProfile').textContent = (!d.student || profileState.needDupr || profileState.needPhone || profileState.needGender) && nextPage && nextPage !== 'profile' ? '儲存並繼續' : '儲存';
   renderProfileFamily();
   show('viewProfile', d.student ? '基本資料' : '歡迎！');
-  if (profileState.needDupr || profileState.needPhone) {
-    const box = document.querySelector(profileState.needPhone ? '[data-field="電話"]' : '[data-field="DUPR雙打"]');
+  if (profileState.needDupr || profileState.needPhone || profileState.needGender) {
+    const box = document.querySelector(profileState.needPhone ? '[data-field="電話"]' : profileState.needGender ? '[data-field="性別"]' : '[data-field="DUPR雙打"]');
     box.scrollIntoView({ block: 'center' });
     box.classList.add('focus-ring');
     setTimeout(() => box.classList.remove('focus-ring'), 3500);
   }
+}
+
+/** v4.9：性別選單（選項由 GAS init 帶，預設 女／男） */
+function fillGender(sel, v) {
+  sel.innerHTML = '';
+  sel.appendChild(el('option', { value: '', text: '請選擇' }));
+  ((app.init && app.init.genders) || ['女', '男']).forEach((g) => sel.appendChild(el('option', { value: g, text: g })));
+  sel.value = v || '';
 }
 
 function duprOk(v, required) {
@@ -902,12 +927,14 @@ $('btnProfile').addEventListener('click', async () => {
     常去據點: Array.from($('p_venues').querySelectorAll('input:checked')).map((x) => x.value),
     DUPR雙打: $('p_duprD').value.trim(),
     DUPR單打: $('p_duprS').value.trim(),
+    性別: $('p_gender').value, // v4.9
   };
   const bad = {
     姓名: !form.姓名,
     電話: (profileState.needPhone || form.電話) ? !phoneOk(form.電話) : false, // v3：電話只在報名課程時必填
     DUPR雙打: !duprOk(form.DUPR雙打, profileState.needDupr),
     DUPR單打: !duprOk(form.DUPR單打, false),
+    性別: profileState.needGender && !form.性別,
   };
   Object.keys(bad).forEach((k) => document.querySelector('[data-field="' + k + '"]').classList.toggle('invalid', bad[k]));
   if (Object.values(bad).some(Boolean)) return;
@@ -999,6 +1026,8 @@ function openFamilyForm(member, back, opts) {
   (app.init.levels || []).forEach((l) => lv.appendChild(el('option', { value: l.id, text: l.name })));
   lv.value = m.level || '';
   lv.disabled = !!m.level; // 程度以教練判斷為準，空白時才能自填
+  fillGender($('f_gender'), m.gender); // v4.9
+  $('f_genderReq').classList.toggle('hidden', !famState.opts.needGender);
   $('f_dupr').value = m.dupr || '';
   $('f_duprReq').classList.toggle('hidden', !famState.opts.needDupr);
   $('f_phone').value = m.phone || '';
@@ -1006,7 +1035,8 @@ function openFamilyForm(member, back, opts) {
   $('f_consentField').classList.toggle('hidden', !isNew);
   $('btnFamilyRemove').classList.toggle('hidden', isNew);
   $('btnFamily').textContent = famState.back === 'signup' ? '儲存並回到報名' : '儲存';
-  if (famState.opts.needDupr) banner('famBanner', '這場是 DUPR 球敘，請填寫 ' + (m.name || '家人') + ' 的 DUPR 雙打分數（自評）。', true);
+  if (famState.opts.needGender) banner('famBanner', '這場是女子球敘，請選擇 ' + (m.name || '家人') + ' 的性別。', true);
+  else if (famState.opts.needDupr) banner('famBanner', '這場是 DUPR 球敘，請填寫 ' + (m.name || '家人') + ' 的 DUPR 雙打分數（自評）。', true);
   else banner('famBanner', isNew ? '新增後，報名時可以選擇替這位家人報名。' : '');
   show('viewFamily', isNew ? '新增家人' : '編輯家人');
 }
@@ -1033,6 +1063,7 @@ $('btnFamily').addEventListener('click', async () => {
     birthday: $('f_birth').value,
     level: $('f_level').disabled ? '' : $('f_level').value,
     dupr: $('f_dupr').value.trim(),
+    gender: $('f_gender').value, // v4.9
     phone: normalizePhone($('f_phone').value),
     consent: $('f_consent').checked,
   };
@@ -1040,6 +1071,7 @@ $('btnFamily').addEventListener('click', async () => {
     f姓名: !member.name,
     f生日: !member.birthday,
     fDUPR: !duprOk(member.dupr, !!famState.opts.needDupr),
+    f性別: !!famState.opts.needGender && !member.gender,
     f電話: member.phone ? !phoneOk(member.phone) : false,
     f同意: isNew && !member.consent,
   };
@@ -1538,13 +1570,14 @@ function gatherCourtCard(g, ct) {
     }
   } else if (!ok.length) {
     const b0 = bad[0];
-    if (bad.length === 1 && b0.e.code === 'NEED_DUPR') {
-      right = el('button', { class: 'act alt', type: 'button', text: '填寫 DUPR' + (b0.pid === myId() ? '' : '（' + personName(b0.pid) + '）') });
+    if (bad.length === 1 && (b0.e.code === 'NEED_DUPR' || b0.e.code === 'NEED_GENDER')) {
+      const opt = b0.e.code === 'NEED_GENDER' ? { needGender: true } : { needDupr: true }; // v4.9：女子球敘要先選性別
+      right = el('button', { class: 'act alt', type: 'button', text: (b0.e.code === 'NEED_GENDER' ? '選擇性別' : '填寫 DUPR') + (b0.pid === myId() ? '' : '（' + personName(b0.pid) + '）') });
       right.addEventListener('click', () => (b0.pid === myId()
-        ? openProfile('signup', { needDupr: true })
-        : openFamilyForm(family().find((f) => f.id === b0.pid), 'signup', { needDupr: true })));
+        ? openProfile('signup', opt)
+        : openFamilyForm(family().find((f) => f.id === b0.pid), 'signup', opt)));
     } else {
-      right = el('span', { class: 'badge warn', text: bad.length > 1 ? '資格不符' : b0.e.code === 'DUPR' ? 'DUPR 分數不符' : '程度不符' });
+      right = el('span', { class: 'badge warn', text: bad.length > 1 ? '資格不符' : b0.e.code === 'DUPR' ? 'DUPR 分數不符' : b0.e.code === 'GENDER' ? '性別不符' : '程度不符' });
     }
   } else {
     const n = ok.length;
@@ -1623,9 +1656,10 @@ function localPlan(it, court, ids) {
 function signupFail(r, it, ctx) {
   console.warn('[signup] 失敗', it.id, r.error || (r.uncertain ? 'UNCERTAIN' : ''), r.message || '');
   if (r.error === 'NEED_PROFILE') return openProfile('signup');
-  if (r.error === 'NEED_DUPR') {
+  if (r.error === 'NEED_DUPR' || r.error === 'NEED_GENDER') {
     const f = r.memberId ? family().find((x) => x.id === r.memberId) : null;
-    return f ? openFamilyForm(f, 'signup', { needDupr: true }) : openProfile('signup', { needDupr: true });
+    const opt = r.error === 'NEED_GENDER' ? { needGender: true } : { needDupr: true }; // v4.9
+    return f ? openFamilyForm(f, 'signup', opt) : openProfile('signup', opt);
   }
   if (r.error === 'NEED_PHONE') {
     // 確認畫面還沒問手機 → 回到確認畫面補填；已經送了手機仍被擋（GAS 未更新到 v3.7.2）→ 舊流程：基本資料頁
@@ -2246,8 +2280,37 @@ async function openGathering(id, keep) {
   return pageLoad('g:' + (id || 'today'), { action: 'gathering', id: id }, renderGatheringPage, 'viewGathering', { maxAge: 0, force: !!keep });
 }
 
+/** v4.9（10/31）：簽到區 — 今天要簽到的課程／球敘依據點列出；按「簽到」走原本的現場簽到（定位＋家人勾選） */
+function renderCheckinBox(ci) {
+  const box = $('gCheckin');
+  box.innerHTML = '';
+  if (!Array.isArray(ci)) return; // 指定某一場球敘（不是從選單開）→ 不顯示簽到區
+  if (!ci.length) {
+    box.appendChild(el('div', { class: 'card' }, [
+      el('h2', { text: '簽到' }),
+      el('div', { class: 'note', text: '今天沒有要簽到的課程或球敘。\n沒有報名、想在現場加入球敘，請掃據點的 QR Code。' , style: 'white-space:pre-line' }),
+    ]));
+    return;
+  }
+  ci.forEach((v) => {
+    const lines = v.items.map((x) => el('div', { class: 'ci-line', style: 'display:flex;justify-content:space-between;gap:8px;margin:4px 0' }, [
+      el('span', { text: x.start + '　' + x.title + (x.who ? '（' + x.who + '）' : '') }),
+      x.done ? el('span', { class: 'badge', text: '已簽到' }) : x.wait ? el('span', { class: 'badge wait', text: x.wait === '候補' ? '候補中' : x.wait }) : el('span', { class: 'note', text: x.open ? '可簽到' : '' }),
+    ]));
+    let act;
+    if (v.allDone) act = el('div', { class: 'note', style: 'margin-top:8px', text: '都已簽到，祝打球愉快！' });
+    else if (v.open) {
+      act = el('button', { class: 'primary', type: 'button', text: '簽到', style: 'margin-top:10px' });
+      act.addEventListener('click', () => { app.lastLoc = null; app.ciFor = null; openCheckin(v.id); });
+    } else act = el('button', { class: 'primary', type: 'button', text: (v.opensAt || '開始前 30 分鐘') + ' 起可以簽到', disabled: true, style: 'margin-top:10px' });
+    box.appendChild(el('div', { class: 'card' }, [el('h2', { text: '簽到・' + v.name })].concat(lines, [act,
+      el('div', { class: 'note', style: 'margin-top:6px', text: '簽到需要開啟定位，確認你在現場。' })])));
+  });
+}
+
 function renderGatheringPage(d, stale) {
   setViewStale('viewGathering', stale);
+  renderCheckinBox(d.ci); // v4.9
   if (!stale) $('gRefresh').textContent = '重新整理';
   if (d.none) {
     // v3：選單「今日球敘」，但沒有已報名的球敘
@@ -2260,8 +2323,8 @@ function renderGatheringPage(d, stale) {
     $('gUpdated').textContent = '';
     const body = $('gBody');
     body.innerHTML = '';
-    body.appendChild(el('button', { class: 'primary', type: 'button', text: '報名球敘', onclick: () => openSignup('gathering') }));
-    show('viewGathering', '今日球敘');
+    body.appendChild(el('button', { class: (Array.isArray(d.ci) && d.ci.length ? 'ghost' : 'primary'), type: 'button', text: '報名球敘', onclick: () => openSignup('gathering') }));
+    show('viewGathering', Array.isArray(d.ci) ? '簽到' : '今日球敘');
     return;
   }
   $('gSectionTabs').classList.remove('hidden');
@@ -2278,7 +2341,7 @@ function renderGatheringPage(d, stale) {
   d.courts.forEach((c) => ct.appendChild(el('button', { type: 'button', class: c.id === gState.court ? 'on' : '', text: c.name + (c.id === d.myCourt ? '・我' : ''), onclick: () => { gState.court = c.id; renderGathering(); } })));
   $('gUpdated').textContent = '更新時間 ' + d.updated;
   renderGathering();
-  show('viewGathering', d.pick === 'today' ? '今日球敘' : '球敘');
+  show('viewGathering', Array.isArray(d.ci) ? '簽到' : d.pick === 'today' ? '今日球敘' : '球敘'); // v4.9：選單「簽到」
 }
 
 function renderGathering() {
