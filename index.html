@@ -119,6 +119,7 @@
   .badge.wait { background: var(--gold-bg); color: var(--gold); }
   .badge.warn { background: var(--warn-bg); color: var(--warn); }
   .badge.grey { background: #eef1ef; color: var(--muted); }
+  .badge.lv { background: #e8f0fb; color: #2f5d9a; } /* v4.15：建議程度 */
   .seat { font-size: 13px; font-weight: 600; color: var(--green-dark); }
   .seat.full { color: var(--warn); }
   .note { font-size: 12px; color: var(--muted); }
@@ -545,7 +546,7 @@
 const LIFF_ID = '2011932114-Fh1txi0y';          // 例：2001234567-AbCdEfGh
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEMw17w0AZ_-E_MrQq2kBamkGTpCVNa7VGEA8-R-IYCP4x-9Hf4L9w8WRdvRH2iz-a/exec';  // https://script.google.com/macros/s/…/exec
 const SHOW_ERROR_CODE = false;                    // 測試期間顯示錯誤代碼；上線後改為 false
-const OA_BASIC_ID = '@251nkmih';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
+const OA_BASIC_ID = '@xxxxxxx';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
 
 // ================================================================
 // 共用
@@ -1487,6 +1488,11 @@ function gatherFeeLine(g) {
   return parts.join('・');
 }
 
+/** v4.15：建議程度標籤（只是建議、不擋報名；沒填就不顯示） */
+function gatherLevelBadge(g) {
+  return g.levelTag ? el('span', { class: 'badge lv', title: '建議程度，不限制報名', text: '建議 ' + g.levelTag }) : null;
+}
+
 function gatherCard(g) {
   const w = splitWhen(g.timeLabel || g.when);
   const typeName = g.typeLabel || g.title;
@@ -1495,7 +1501,7 @@ function gatherCard(g) {
   const pick = el('button', { class: 'act' + (s.full ? ' alt' : ''), type: 'button', text: (g.courts || []).length > 1 ? '選擇球面' : s.full ? '排候補' : '報名' });
   pick.addEventListener('click', () => { signupState.only = g.id; renderSignup(); window.scrollTo(0, 0); });
   return el('div', { class: 'item gcard' }, [
-    el('div', { class: 'gt' }, [el('span', { class: 'tm', text: w.time || w.date }), el('span', { class: 'badge', text: typeName }), gatherMineBadge(g)]),
+    el('div', { class: 'gt' }, [el('span', { class: 'tm', text: w.time || w.date }), el('span', { class: 'badge', text: typeName }), gatherLevelBadge(g), gatherMineBadge(g)]),
     g.title && g.title !== typeName ? el('div', { class: 's', text: g.title }) : null,
     el('div', { class: 'm', text: gatherFeeLine(g) }),
     g.typeDesc ? el('div', { class: 'note clamp2', style: 'margin-top:6px', text: g.typeDesc }) : null,
@@ -1514,7 +1520,7 @@ function renderGatherCourts(g, hasOthers) {
   const s = gatherSeats(g);
   list.appendChild(el('div', { class: 'item gcard ghead' }, [
     el('div', { class: 'gt' }, [el('span', { class: 'tm', text: g.timeLabel || g.when }), gatherMineBadge(g)]),
-    el('div', { class: 's', text: typeName + (g.title && g.title !== typeName ? '・' + g.title : '') }),
+    el('div', { class: 's' }, [document.createTextNode(typeName + (g.title && g.title !== typeName ? '・' + g.title : '')), gatherLevelBadge(g)]),
     el('div', { class: 'm', text: gatherFeeLine(g) + '・先付款' }),
     g.typeDesc ? el('div', { class: 'note', style: 'margin-top:6px;white-space:pre-line', text: g.typeDesc }) : null,
     el('div', { class: 'foot' }, [
