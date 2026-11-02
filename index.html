@@ -545,7 +545,7 @@
 const LIFF_ID = '2011932114-Fh1txi0y';          // 例：2001234567-AbCdEfGh
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEMw17w0AZ_-E_MrQq2kBamkGTpCVNa7VGEA8-R-IYCP4x-9Hf4L9w8WRdvRH2iz-a/exec';  // https://script.google.com/macros/s/…/exec
 const SHOW_ERROR_CODE = false;                    // 測試期間顯示錯誤代碼；上線後改為 false
-const OA_BASIC_ID = '@251nkmih';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
+const OA_BASIC_ID = '@xxxxxxx';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
 
 // ================================================================
 // 共用
@@ -2107,6 +2107,7 @@ function lessonsCard(box, info, title) {
 }
 
 function statusBadge(it) {
+  if (it.makeup) return el('span', { class: 'badge', text: '補課' }); // v4.14
   if (it.status === '候補') return el('span', { class: 'badge wait', text: '候補第 ' + it.rank + ' 位' });
   if (it.status === '保留中') return el('span', { class: 'badge wait', text: it.gatherHold ? (it.unformedGather ? '未成團・待選擇' : '已取消・待選擇') : it.choice === '順延' ? '順延中' : '未成班・待選擇' }); // v4.8：球敘
   if (it.classStatus === '籌備中') return el('span', { class: 'badge grey', text: '待成班' });
@@ -2114,7 +2115,25 @@ function statusBadge(it) {
   return el('span', { class: 'badge', text: '已報名' });
 }
 
+/** v4.14：已安排的補課（期制課請假 → 補到別班／專項課） */
+function makeupCard(it) {
+  const notes = ['期制課補課' + (it.fromText ? '（請假：' + it.fromText + '）' : '') + '，不另收費；上完由原班扣 1 堂。'];
+  if (it.single) {
+    notes.push(it.formed ? '這堂已確定開課。' : (it.decideText || '上課前 3 天') + ' 決定是否開課；如果沒開成，補課會取消，原本的請假會再幫你安排。');
+    if (it.coachName) notes.push('教練 ' + it.coachName);
+  }
+  notes.push('想換補課時間請點「聯絡客服」。');
+  return el('div', { class: 'item' }, [
+    el('div', { class: 't' }, [whoTag(it.who), el('span', { text: it.title }), statusBadge(it)]),
+    el('div', { class: 's', text: it.when }),
+    el('div', { class: 'm', text: [it.kind, it.venue, it.courtName].filter(Boolean).join('・') }),
+    el('div', { class: 'note', style: 'margin-top:4px;white-space:pre-line', text: notes.join('\n') }),
+    el('div', { class: 'foot' }, [el('span', { class: 'seat', text: '補課・不另收費' }), el('span', {})]),
+  ]);
+}
+
 function myCard(it, hours) {
+  if (it.makeup) return makeupCard(it); // v4.14
   let payText = '';
   let payWarn = false;
   if (it.status === '已報名') {
@@ -2363,6 +2382,7 @@ function courseRow(x, who, hours) {
     el('div', {}, [
       el('div', { class: 'sw' }, [el('span', { text: x.when }), act ? badge : null]),
       x.lesson ? el('div', { class: 'sl', text: '第 ' + x.lesson + ' 堂' }) : null,
+      x.makeup ? el('div', { class: 'sl', text: '已安排補課：' + x.makeup }) : null, // v4.14
       act ? act.note : null,
     ]),
     act ? act.right : badge,
