@@ -546,7 +546,7 @@
 const LIFF_ID = '2011932114-Fh1txi0y';          // 例：2001234567-AbCdEfGh
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEMw17w0AZ_-E_MrQq2kBamkGTpCVNa7VGEA8-R-IYCP4x-9Hf4L9w8WRdvRH2iz-a/exec';  // https://script.google.com/macros/s/…/exec
 const SHOW_ERROR_CODE = false;                    // 測試期間顯示錯誤代碼；上線後改為 false
-const OA_BASIC_ID = '@251nkmih';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
+const OA_BASIC_ID = '@xxxxxxx';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
 
 // ================================================================
 // 共用
@@ -1634,12 +1634,12 @@ function singleCard(it) {
   const min = it.min || 5;
   const pct = Math.min(100, Math.round(((it.paidCount || 0) / min) * 100));
   let prog;
-  if (it.formed) prog = '已成班，確定開課';
+  if (it.formed) prog = '已成班，確定開課・' + seatLine(it); // v4.17：已開班也顯示目前人數
   else if (it.need > 0) prog = '目前 ' + (it.paidCount || 0) + '／' + min + ' 人，還差 ' + it.need + ' 人成班';
   else prog = '已達 ' + min + ' 人，' + (it.decideText ? it.decideText + ' 確認開課' : '等待確認開課');
   rows.push(el('div', { class: 'sg-prog' }, [
     el('div', { class: 'seat', text: prog }),
-    el('div', { class: 'sg-bar' + (it.formed || !it.need ? ' ok' : '') }, [el('i', { style: 'width:' + (it.formed ? 100 : pct) + '%' })]),
+    el('div', { class: 'sg-bar' + (it.formed || !it.need ? ' ok' : '') }, [el('i', { style: 'width:' + (it.formed ? fillPct(it) : pct) + '%' })]),
     it.formed ? null : el('div', { class: 'note', text: '成班決定：' + (it.decideText || '上課前 3 天') + '（以已付款人數計算）' }),
   ]));
   const c = it.coach;
@@ -1714,6 +1714,15 @@ function pickRow(title, sub, fn) {
 }
 
 /** 課程：不顯示人數，只標可報名／已額滿 */
+/** v4.17：課程目前人數「目前 4／6 人・剩 2 位」（count＝佔名額人數，含補課生；舊 GAS 沒有 count 時用已付人數） */
+function courseCount(it) { return typeof it.count === 'number' ? it.count : (it.paidCount || 0); }
+function seatLine(it) {
+  const n = courseCount(it);
+  const lim = it.limit || 0;
+  return '目前 ' + n + (lim ? '／' + lim : '') + ' 人' + (lim ? (n >= lim ? '・已額滿' : '・剩 ' + (lim - n) + ' 位') : '');
+}
+function fillPct(it) { return it.limit ? Math.min(100, Math.round((courseCount(it) / it.limit) * 100)) : 100; }
+
 function classCourtCard(it) {
   const right = classSignupBtn(it); // v3.7.2：缺手機時按鈕寫「填手機後報名」
   const fee = it.preopen
@@ -1723,7 +1732,7 @@ function classCourtCard(it) {
     el('div', { class: 't', text: it.title }, [it.tag ? el('span', { class: 'badge', text: it.tag }) : null]), // v4.11：課名在前
     el('div', { class: 's', text: [it.when, it.courtName].filter(Boolean).join('・') }),
     el('div', { class: 'm', text: [it.lessons ? it.lessons + ' 堂' : '', fee].filter(Boolean).join('・') }),
-    el('div', { class: 'foot' }, [el('span', { class: 'seat' + (it.full ? ' full' : ''), text: it.full ? '已額滿（可候補）' : '可報名' }),
+    el('div', { class: 'foot' }, [el('span', { class: 'seat' + (it.full ? ' full' : ''), text: it.full ? '已額滿（可候補）' : (!it.preopen && typeof it.count === 'number' ? seatLine(it) : '可報名') }), // v4.17：已開班顯示目前人數
       el('div', { class: 'acts' }, [shareButton(shareOf(it)), right])]), // v4.11：直接分享
   ]);
 }
