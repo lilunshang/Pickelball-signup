@@ -306,6 +306,7 @@
   </div>
   <div style="max-width:320px;margin:24px auto 0">
     <button class="primary hidden" id="btnDoneNext" type="button"></button>
+    <button class="ghost hidden" style="margin-top:10px" id="btnDonePay" type="button">我已轉帳・回報付款</button><!-- v4.19 -->
     <button class="ghost share hidden" style="margin-top:10px" id="btnDoneShare" type="button">分享報名連結給朋友</button>
     <button class="ghost" style="margin-top:10px" onclick="closeLiff()">關閉</button>
   </div>
@@ -618,6 +619,10 @@ function showDone(title, msg, opts) {
   const b = $('btnDoneNext');
   b.classList.toggle('hidden', !opts.next);
   if (opts.next) { b.textContent = opts.next.label; b.onclick = opts.next.fn; }
+  // v4.19：報名成功（有應繳）→ 直接回報付款
+  const pb = $('btnDonePay');
+  pb.classList.toggle('hidden', !opts.pay);
+  pb.onclick = opts.pay || null;
   // v3.7：分享報名連結
   const sb = $('btnDoneShare');
   sb.classList.toggle('hidden', !opts.share);
@@ -2060,6 +2065,9 @@ function signupDone(it, court, d) {
   if (d.my) savePage('my', d.my);
   delete app.mem.courses; delete app.mem['g:today']; // v3.10：報名後這兩頁下次開啟時背景更新
   const myBtn = { label: '查看我的報名', fn: () => route('my') };
+  // v4.19：這次報名有應繳 → 完成頁多「我已轉帳・回報付款」（只勾這次的報名）
+  const payIds = results.filter((x) => x.status === '已報名' && x.amount > 0).map((x) => x.signupId || (results.length === 1 ? d.signupId : '')).filter(Boolean);
+  const payFn = payIds.length && d.my ? () => openPay(payIds, d.my) : null;
   const done = results.filter((x) => x.status);
   const share = { kind: it.kind, id: it.id, title: it.title, when: it.timeLabel || it.when, venue: it.venue };
   if (done.length === 1 && results.length === 1) {
@@ -2085,7 +2093,7 @@ function signupDone(it, court, d) {
     const friendText = it.single ? '成班結果、付款期限與上課提醒都用 LINE 通知，加入官方帳號才收得到。' : it.kind === '球敘'
       ? '付款期限、候補遞補與開打前提醒都用 LINE 通知，加入官方帳號才收得到。'
       : '開班確認、開課日期與尾款通知都用 LINE 傳送，加入官方帳號才收得到。';
-    return showDone('報名成功', lines.join('\n'), { next: myBtn, share: share, friendText: friendText });
+    return showDone('報名成功', lines.join('\n'), { next: myBtn, pay: payFn, share: share, friendText: friendText });
   }
   // 多人：逐人列出結果與合計
   const lines = [it.title, (it.timeLabel || it.when) + (court ? '　' + court.name : ''), ''];
@@ -2114,7 +2122,7 @@ function signupDone(it, court, d) {
     if (app.init.paymentInfo) lines.push(app.init.paymentInfo);
   }
   const allWait = done.every((x) => x.status !== '已報名');
-  showDone(allWait ? '已加入候補' : '報名完成', lines.join('\n'), { icon: allWait ? '⏳' : '✓', wait: allWait, next: myBtn, share: share,
+  showDone(allWait ? '已加入候補' : '報名完成', lines.join('\n'), { icon: allWait ? '⏳' : '✓', wait: allWait, next: myBtn, pay: payFn, share: share,
     friendText: '付款期限、候補遞補與提醒都用 LINE 通知（家人的通知也會傳給你），加入官方帳號才收得到。' });
 }
 
@@ -2163,7 +2171,7 @@ function renderMy(d, stale) {
   pi.textContent = payLines.join('\n\n');
   pi.className = 'banner' + (fam.length && total > 0 ? ' warn' : '');
   pi.classList.toggle('hidden', !payLines.length);
-  myState.owing = d.items.filter((it) => oweOf(it) > 0 && !it.payReport); // v4.19
+  myState.owing = owingOf(d); // v4.19
   if (myState.owing.length) {
     pi.appendChild(el('button', { class: 'act', type: 'button', style: 'display:block;margin-top:10px', text: '我已轉帳・回報付款', onclick: () => openPay(null) }));
     pi.classList.remove('hidden');
@@ -2192,11 +2200,15 @@ function renderMy(d, stale) {
 // ================================================================
 const payState = { pick: {}, submissionId: '' };
 function payOwe(it) { return it.due > it.paid ? it.due - it.paid : 0; }
-function openPay(signupId) {
+function owingOf(d) { return ((d && d.items) || []).filter((it) => it.status === '已報名' && payOwe(it) > 0 && !it.payReport); }
+/** sel：null＝全勾；報名ID 或 報名ID 陣列＝只勾這些。myData：報名完成頁帶來的最新我的報名 */
+function openPay(sel, myData) {
+  if (myData) myState.owing = owingOf(myData);
   const list = myState.owing || [];
-  if (!list.length) return;
+  if (!list.length) return openMy();
+  const want = sel == null ? null : [].concat(sel);
   payState.pick = {};
-  list.forEach((it) => { payState.pick[it.signupId] = !signupId || it.signupId === signupId; });
+  list.forEach((it) => { payState.pick[it.signupId] = !want || want.indexOf(it.signupId) >= 0; });
   payState.submissionId = newId();
   const box = $('payList');
   box.innerHTML = '';
