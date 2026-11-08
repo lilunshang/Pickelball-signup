@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
@@ -585,7 +585,7 @@
 const LIFF_ID = '2011932114-Fh1txi0y';          // 例：2001234567-AbCdEfGh
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEMw17w0AZ_-E_MrQq2kBamkGTpCVNa7VGEA8-R-IYCP4x-9Hf4L9w8WRdvRH2iz-a/exec';  // https://script.google.com/macros/s/…/exec
 const SHOW_ERROR_CODE = false;                    // 測試期間顯示錯誤代碼；上線後改為 false
-const OA_BASIC_ID = '@251nkmih';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
+const OA_BASIC_ID = '@xxxxxxx';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
 
 // ================================================================
 // 共用
@@ -2320,7 +2320,8 @@ function myCard(it, hours) {
   let payText = '';
   let payWarn = false;
   if (it.status === '已報名') {
-    if (!it.due) payText = '免費';
+    if (it.private && !it.due && it.payerName) { payText = '由 ' + it.payerName + ' 付款・' + (it.payerDue && it.payerPaid >= it.payerDue ? '已付清' : '待付款'); } // v4.21：私人課程
+    else if (!it.due) payText = '免費';
     else if (it.payReport) payText = '已回報付款・待確認'; // v4.19：待確認也算已付，所以先判斷
     else if (it.paid >= it.due) payText = '已繳清';
     else { payText = '未繳 ' + money(it.due - it.paid); payWarn = true; }
