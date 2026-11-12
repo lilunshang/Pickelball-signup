@@ -600,7 +600,7 @@
 const LIFF_ID = '2011932114-Fh1txi0y';          // 例：2001234567-AbCdEfGh
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEMw17w0AZ_-E_MrQq2kBamkGTpCVNa7VGEA8-R-IYCP4x-9Hf4L9w8WRdvRH2iz-a/exec';  // https://script.google.com/macros/s/…/exec
 const SHOW_ERROR_CODE = false;                    // 測試期間顯示錯誤代碼；上線後改為 false
-const OA_BASIC_ID = '@251nkmih';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
+const OA_BASIC_ID = '@xxxxxxx';                   // v3：學員官方帳號的 Basic ID（含 @），加好友按鈕用
 
 // ================================================================
 // 共用
@@ -1319,6 +1319,18 @@ function saveOptionsCache(d) {
   } catch (e) { /* 空間不足或無法使用時略過 */ }
 }
 function setStale(on) { $('viewSignup').classList.toggle('stale', !!on); }
+/** v4.27：quick 的場次沒有個人狀態 → 用手機上次的資料補「已報名／候補、球面」；抵用金沒有就沿用 */
+function mergeMine(opt, prev) {
+  const idx = {};
+  if (prev) {
+    (prev.classes || []).forEach((c) => { idx['c:' + c.id] = c; });
+    (prev.gatherings || []).forEach((g) => { idx['g:' + g.id] = g; });
+  }
+  (opt.classes || []).forEach((c) => { const o = idx['c:' + c.id]; if (o) { c.mine = o.mine || ''; if (o.mineBy) c.mineBy = o.mineBy; } else c.mine = c.mine || ''; });
+  (opt.gatherings || []).forEach((g) => { const o = idx['g:' + g.id]; if (o) { g.mine = o.mine || ''; g.mineCourt = o.mineCourt || ''; if (o.mineBy) g.mineBy = o.mineBy; } else { g.mine = g.mine || ''; g.mineCourt = g.mineCourt || ''; } });
+  if (opt.credit === null || opt.credit === undefined) opt.credit = prev && prev.credit ? prev.credit : 0;
+  return opt;
+}
 
 /** v3：深層連結 ?type=game|class&id=… → 直接顯示該場次（③ 球面）；找不到時回到一般首頁 */
 async function openTarget(type, id) {
@@ -3352,7 +3364,39 @@ async function main() {
     else app.geoP = Promise.resolve(loc); // 交給 openCheckin 顯示定位問題
   }
 
+  // v4.27 方案 A：報名頁先用伺服器預先算好的場次（quick，不讀試算表），完整資料（我的報名狀態、抵用金）到了再換上
+  let initDone = false;
+  const applyQuick = (q) => {
+    try {
+      const opt = mergeMine(q.options, signupState.data || readOptionsCache());
+      if (!app.init || !app.init.student) app.init = q;
+      if (drawn) {
+        // 已畫出手機上次的畫面：換成較新的場次與人數，保留使用者目前停留的步驟（仍顯示「更新中」直到完整資料到）
+        if (app.view !== 'viewSignup') return;
+        signupState.data = opt;
+        if (deep && signupState.only) return;
+        return renderSignup();
+      }
+      setBooting(true); // 送出類按鈕等完整資料到了才能按
+      signupState.data = opt;
+      if (deep) applyTarget(app.params.type, app.params.id, opt);
+      else {
+        signupState.tab = tabOf(app.params.tab);
+        signupState.region = ''; signupState.venue = ''; signupState.time = ''; signupState.only = '';
+        renderSignup();
+        show('viewSignup', signupTitle());
+      }
+      setStale(true);
+      drawn = true; // 畫成功才算（完整資料到時保留目前步驟）；畫失敗 → 照舊等完整資料
+    } catch (e) {
+      console.warn('quick', e);
+      if (!drawn) setBooting(false);
+    }
+  };
+  if (wantsOptions) callGas({ action: 'quick' }, 9000).then((q) => { if (!initDone && q && q.ok && q.options) applyQuick(q); }).catch(() => {});
+
   const d = await initCall({ action: 'init', src: app.src, withOptions: wantsOptions, bundle: true, page: pageBody ? page : '', pageBody: pageBody }, drawn);
+  initDone = true;
   if (!d) return;
   const isNew = !!d.isNew;
   app.init = d;
