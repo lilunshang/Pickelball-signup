@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>理論上匹克球</title>
+<!-- v4.35（2026/11/14）：送出時整頁等待畫面（報名、取消、回報付款…不必猜有沒有送出）；開啟計時（各段耗時回報到 9_開啟計時，須搭配 GAS v4.35） -->
 <!-- 學員官方帳號 LIFF　v3（2026/10/11）：v2 ＋ 免加好友報名、深層連結（type／id／src）、加好友邀請、電話只在課程時要求 -->
 <!-- v3.2（2026/10/19）：籌備中課程不顯示日期、課程候補「暫不需付款」、未成班三選項 順延／轉班／退款（須搭配 GAS v3.2） -->
 <!-- v3.3（2026/10/19）：開頁只要 1 個請求（init 一併回傳頁面資料）、各頁先顯示手機上次的資料、操作後不再重讀（須搭配 GAS v3.3） -->
@@ -97,6 +98,11 @@
   .check { width: 56px; height: 56px; margin: 0 auto; border-radius: 50%; background: var(--green); color: #fff; font-size: 30px; line-height: 56px; }
   .check.wait { background: #d9a441; }
   .hidden { display: none !important; }
+  /* v4.35：送出時的整頁等待畫面 */
+  #busy { position: fixed; inset: 0; z-index: 80; background: rgba(245,248,246,.86); display: flex; align-items: center; justify-content: center; padding: 24px; }
+  #busy .busy-box { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 20px; width: 100%; max-width: 300px; text-align: center; box-shadow: 0 6px 24px rgba(0,0,0,.08); }
+  #busy #busyText { margin: 14px 0 4px; font-size: 18px; font-weight: 700; color: var(--green-dark); }
+  #busy #busyHint { margin: 0; font-size: 15px; color: var(--muted); min-height: 3.1em; }
   .code { font-size: 12px; color: var(--muted); margin-top: 16px; word-break: break-all; }
   .tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 4px; margin-bottom: 14px; }
   .tabs button { border: 0; background: none; padding: 9px 6px; border-radius: 999px; font-size: 15px; color: var(--muted); font-weight: 600; }
@@ -611,6 +617,10 @@
 </main>
 
 <div id="toast" class="hidden"></div>
+<!-- v4.35：送出時的等待畫面（擋住其他按鈕，避免重按或中途離開） -->
+<div id="busy" class="hidden" role="status" aria-live="polite">
+  <div class="busy-box"><div class="spinner"></div><p id="busyText">處理中…</p><p id="busyHint"></p></div>
+</div>
 <!-- v3.10：分頁列（切換頁面不必回聊天室點選單；資料開頁時已帶齊） -->
 <nav id="tabbar" class="tabbar hidden">
   <button type="button" data-tab="gathering">簽到</button>
@@ -651,6 +661,42 @@ const OA_BASIC_ID = '@251nkmih';                   // v3：學員官方帳號的
 const $ = (id) => document.getElementById(id);
 const VIEWS = ['viewLoading', 'viewError', 'viewDone', 'viewWelcome', 'viewProfile', 'viewSignup', 'viewMy', 'viewGathering', 'viewUnformed', 'viewCourses', 'viewCheckin', 'viewFamily', 'viewConfirm', 'viewPay'];
 const app = { idToken: '', params: {}, init: null, src: '', friend: null, view: '', mem: {}, prePage: null, optAt: 0 };
+
+// ================================================================
+// v4.35：開啟計時 — 手機端各段花多久（從網頁開始載入算起，毫秒），開完頁後在背景回報一次（不擋畫面）
+//   伺服器 init 回傳 perf＝1 才回報（指令碼屬性 PERF_LOG＝off 可關閉）；送出類動作（報名、取消…）也回報來回時間
+// ================================================================
+const APP_VER = '4.35';
+const PERF = { t: {}, srv: {}, first: '', tok: 0, hop: 0, on: false };
+function pmark(k) { try { if (!(k in PERF.t)) PERF.t[k] = Math.round(performance.now()); } catch (e) { /* 計時失敗不影響功能 */ } }
+function perfSend(item, x) {
+  try {
+    if (!PERF.on || !app.idToken) return;
+    const c = navigator.connection || {};
+    const ua = navigator.userAgent || '';
+    const body = Object.assign({ action: 'perf', idToken: app.idToken, v: APP_VER, item: item, net: c.effectiveType || '',
+      dev: /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : '其他' }, x || {});
+    setTimeout(() => { fetch(GAS_URL, { method: 'POST', body: JSON.stringify(body), keepalive: true }).catch(() => {}); }, 1200);
+  } catch (e) { /* 回報失敗不影響功能 */ }
+}
+
+// ---- v4.35：送出時的整頁等待畫面（超過 6 秒、15 秒換一句說明） ----
+let busyTimers = [];
+function busyShow(text) {
+  $('busyText').textContent = text || '處理中…';
+  $('busyHint').textContent = '通常需要幾秒鐘';
+  $('busy').classList.remove('hidden');
+  busyTimers.forEach(clearTimeout);
+  busyTimers = [
+    setTimeout(() => { $('busyHint').textContent = '還在處理中，請不要關閉畫面，也不用重按'; }, 6000),
+    setTimeout(() => { $('busyHint').textContent = '比平常久一些，系統仍在處理，請再等一下'; }, 15000),
+  ];
+}
+function busyHide() {
+  busyTimers.forEach(clearTimeout);
+  busyTimers = [];
+  $('busy').classList.add('hidden');
+}
 
 function show(view, title) {
   const changed = app.view !== view;
@@ -887,12 +933,17 @@ async function send(button, payload, busyText) {
   const label = button.textContent;
   button.disabled = true;
   button.textContent = busyText || '處理中…';
+  busyShow(busyText); // v4.35
+  const t0 = performance.now();
   let last = '';
   try {
     for (let i = 0; i < 2; i++) {
       try {
         const r = await callGas(payload, 20000);
-        if (r.ok) return { ok: true, data: r };
+        if (r.ok) {
+          perfSend('act:' + payload.action, { back: Math.round(performance.now() - t0), srv: r.srvMs }); // v4.35
+          return { ok: true, data: r };
+        }
         if (r.error !== 'BUSY') return { ok: false, error: r.error, message: (r.message || '處理失敗') + (SHOW_ERROR_CODE ? '（' + r.error + '）' : '') };
         last = 'BUSY';
       } catch (e) {
@@ -901,6 +952,7 @@ async function send(button, payload, busyText) {
     }
     return { ok: false, uncertain: true, message: '連線不穩定，可能已經完成。請稍後到「我的報名」確認；沒有的話再操作一次即可（不會重複）。' + (SHOW_ERROR_CODE ? '（' + last + '）' : '') };
   } finally {
+    busyHide(); // v4.35
     button.disabled = false;
     button.textContent = label;
   }
@@ -3560,6 +3612,7 @@ async function initLiff() {
   if (sub) app.sub = sub;
   app.idToken = token;
   app.early = false;
+  pmark('liff'); // v4.35
   readyResolve();
   return true;
 }
@@ -3607,9 +3660,11 @@ async function main() {
     if (!drawn) setBooting(false);
   }
   const startTab = app.tab || '';
+  if (drawn) { PERF.first = '上次畫面'; pmark('paint'); } // v4.35
 
   // ② LINE 登入：上次的 ID Token 還有效就先用它送 init，同時在背景做 liff.init
   const tok = firstHop ? '' : savedToken();
+  PERF.tok = tok ? 1 : 0; PERF.hop = firstHop ? 1 : 0; // v4.35
   if (tok) { app.idToken = tok; app.early = true; }
   // v4.9：要等 LINE 登入 → 先叫伺服器把這一頁要用的表讀進快取，登入完送 init 時就不用再等讀表
   if (!tok) warmUp(page, wantsOptions);
@@ -3672,13 +3727,23 @@ async function main() {
       if (!drawn) setBooting(false);
     }
   };
-  if (wantsOptions) callGas({ action: 'quick' }, 9000).then((q) => { if (!initDone && q && q.ok && q.options) applyQuick(q); }).catch(() => {});
+  if (wantsOptions) callGas({ action: 'quick' }, 9000).then((q) => {
+    if (q && q.ok) { pmark('quick'); PERF.srv.quick = q.srvMs; } // v4.35
+    if (!initDone && q && q.ok && q.options) {
+      const had = drawn;
+      applyQuick(q);
+      if (drawn && !had && !PERF.first) { PERF.first = '快照'; pmark('paint'); }
+    }
+  }).catch(() => {});
 
+  pmark('send'); // v4.35
   const d = await initCall({ action: 'init', src: app.src, withOptions: wantsOptions, bundle: true, page: pageBody ? page : '', pageBody: pageBody }, drawn);
   initDone = true;
+  pmark('init'); // v4.35
   if (!d) return;
   const isNew = !!d.isNew;
   app.init = d;
+  PERF.on = !!d.perf; PERF.srv.init = d.srvMs; // v4.35
   saveBoot(d);
   if (d.options) { saveOptionsCache(d.options); app.optAt = Date.now(); if (!drawn || !wantsOptions) signupState.data = d.options; } // v3.10：切到報名頁直接用
   if (d.pages) Object.keys(d.pages).forEach((k) => { if (d.pages[k] && d.pages[k].ok !== false) savePage(k, d.pages[k]); });
@@ -3694,7 +3759,7 @@ async function main() {
     if (f !== null && known !== f) callGas({ action: 'friendship', friend: f }).catch(() => {});
   }).catch(() => {});
 
-  const first = () => {
+  const firstRun = () => {
     setBooting(false);
     app.init.isNew = false; // 歡迎畫面之後就是一般學員（顯示分頁列）
     if (app.tab && app.tab !== startTab) { app.params = { page: app.tab, tab: signupState.tab || 'gathering' }; return route(app.tab); } // 開頁後已用分頁列換到別頁
@@ -3708,6 +3773,13 @@ async function main() {
     setStale(false);
     app.preOptions = d.options || null;
     route(page);
+  };
+  const first = () => {
+    firstRun();
+    // v4.35：開啟計時（畫面換上最新資料的時間點）
+    pmark('done');
+    if (!PERF.first) { PERF.first = '等待'; PERF.t.paint = PERF.t.done; }
+    perfSend('open:' + (page || 'deep'), { first: PERF.first, tok: PERF.tok, hop: PERF.hop, t: PERF.t, srv: PERF.srv });
   };
   if (isNew) {
     app.profile = await profileP;
