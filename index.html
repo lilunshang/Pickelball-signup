@@ -215,6 +215,8 @@
   .soon .need { font-size: 14px; font-weight: 700; color: #8a4500; }
   .soon .when { font-size: 12px; color: var(--muted); }
   .soon .sg-bar i { background: #b85c00; }
+  .soon.ok .sg-bar i { background: var(--green); }
+  .soon.ok .need { color: var(--green-dark); }
   .soon button.act { margin-top: 4px; align-self: stretch; padding: 10px; }
   .soon-sec { margin: 6px 2px 8px; font-size: 16px; font-weight: 700; color: var(--green-dark); }
   .vcal { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; margin-bottom: 12px; }
@@ -1511,11 +1513,37 @@ function soonItems() {
   return out.sort((a, b) => a.need - b.need || a.at - b.at).slice(0, 10);
 }
 
-function renderSoon(list, nextTitle) {
-  const arr = soonItems();
+/**
+ * v4.34（11/14 Imperfect）：已成團、還沒額滿的課程與球敘（不限 3 天內，全部列出，依時間排序）
+ *   專項課：已確定開課，或已付款人數已達成班人數；期制課：已開班、還沒到開課日；球敘：已做過成團檢查，或人數（含名單外）已達成團門檻
+ */
+function joinItems() {
+  const d = signupState.data || {};
+  const out = [];
+  (d.classes || []).forEach((c) => {
+    if (c.full) return;
+    if (c.single) {
+      if (!c.formed && c.need > 0) return;
+    } else if (c.preopen || !c.startDate || c.startDate <= todayKey()) return; // 期制課：已開班、還沒到開課日
+    const n = courseCount(c);
+    out.push({ it: c, kind: c.single ? 'single' : 'class', have: n, cap: c.limit || 0 });
+  });
+  (d.gatherings || []).forEach((g) => {
+    const s = gatherSeats(g);
+    if (s.full) return;
+    const f = g.form;
+    const reached = f && f.min && s.count + (f.out || 0) >= f.min;
+    if (!g.formed && !reached) return;
+    out.push({ it: g, kind: 'gathering', have: s.count, cap: s.seats || 0 });
+  });
+  return out.sort((a, b) => (a.it.sortKey < b.it.sortKey ? -1 : a.it.sortKey > b.it.sortKey ? 1 : 0));
+}
+
+/** 報名首頁上方的橫向卡片列；回傳有沒有畫出來 */
+function soonRow(list, arr, title, tag, sub, cardText) {
   if (!arr.length) return false;
-  list.appendChild(el('div', { class: 'soon-h' }, [el('b', { text: '即將成班・差一點就開' }), el('span', { text: SOON_DAYS + ' 天內' })]));
-  list.appendChild(el('div', { class: 'soon-sub', text: '報名就能幫忙湊滿人數，直接參加' + (arr.length > 1 ? '・左右滑看更多' : '') }));
+  list.appendChild(el('div', { class: 'soon-h' }, [el('b', { text: title }), el('span', { text: tag })]));
+  list.appendChild(el('div', { class: 'soon-sub', text: sub + (arr.length > 1 ? '・左右滑看更多' : '') }));
   const row = el('div', { class: 'soon-row' });
   arr.forEach((x) => {
     const it = x.it;
@@ -1529,19 +1557,39 @@ function renderSoon(list, nextTitle) {
       show('viewSignup', signupTitle());
       window.scrollTo(0, 0);
     };
-    const title = x.kind === 'single' ? (it.specName || it.title) : (it.venue + '・' + (it.typeLabel || it.title));
-    const sub = x.kind === 'single' ? it.when + '・' + it.venue : (it.timeLabel || it.when) + '・' + (it.fee ? money(it.fee) : '免費');
-    row.appendChild(el('div', { class: 'soon' }, [
-      el('span', { class: 'k ' + x.kind, text: x.kind === 'single' ? '專項課' + (it.level ? '・' + it.level : '') : '球敘' + (it.levelTag ? '・建議 ' + it.levelTag : '') }),
-      el('div', { class: 't', text: title }),
-      el('div', { class: 'm', text: sub }),
-      el('div', { class: 'sg-bar' }, [el('i', { style: 'width:' + Math.min(100, Math.round(x.have / Math.max(1, x.min) * 100)) + '%' })]),
-      el('div', { class: 'need', text: '目前 ' + x.have + ' 人・還差 ' + x.need + ' 人' + x.unit }),
-      el('div', { class: 'when', text: x.atText }),
+    const title2 = x.kind === 'gathering' ? (it.venue + '・' + (it.typeLabel || it.title)) : (it.specName || it.title);
+    const sub2 = x.kind === 'gathering' ? (it.timeLabel || it.when) + '・' + (it.fee ? money(it.fee) : '免費') : it.when + '・' + it.venue;
+    const label = x.kind === 'gathering' ? '球敘' + (it.levelTag ? '・建議 ' + it.levelTag : '') : (x.kind === 'single' ? '專項課' : '期制課') + (it.level ? '・' + it.level : '');
+    const t = cardText(x);
+    row.appendChild(el('div', { class: 'soon' + (t.ok ? ' ok' : '') }, [
+      el('span', { class: 'k ' + x.kind, text: label }),
+      el('div', { class: 't', text: title2 }),
+      el('div', { class: 'm', text: sub2 }),
+      el('div', { class: 'sg-bar' }, [el('i', { style: 'width:' + t.pct + '%' })]),
+      el('div', { class: 'need', text: t.main }),
+      t.note ? el('div', { class: 'when', text: t.note }) : null,
       el('button', { class: 'act', type: 'button', text: '我要報名', onclick: go }),
     ]));
   });
   list.appendChild(row);
+  return true;
+}
+
+function renderSoon(list, nextTitle) {
+  // v4.34：上面「已成團，歡迎加入」（全部）、下面「即將開始」（原本的即將成班：3 天內要決定、還差人）
+  const a = soonRow(list, joinItems(), '已成團，歡迎加入', '還有名額', '已經確定會開，報名就能直接參加', (x) => ({
+    ok: true,
+    pct: x.cap ? Math.min(100, Math.round(x.have / x.cap * 100)) : 100,
+    main: '目前 ' + x.have + ' 人' + (x.cap ? '・剩 ' + Math.max(0, x.cap - x.have) + ' 位' : ''),
+    note: '',
+  }));
+  const b = soonRow(list, soonItems(), '即將開始', SOON_DAYS + ' 天內', '報名就能幫忙湊滿人數，直接參加', (x) => ({
+    ok: false,
+    pct: Math.min(100, Math.round(x.have / Math.max(1, x.min) * 100)),
+    main: '目前 ' + x.have + ' 人・還差 ' + x.need + ' 人' + x.unit,
+    note: x.atText,
+  }));
+  if (!a && !b) return false;
   list.appendChild(el('div', { class: 'soon-sec', text: nextTitle }));
   return true;
 }
