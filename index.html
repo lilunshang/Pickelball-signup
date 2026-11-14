@@ -200,6 +200,45 @@
   .vcard .vl a { flex: 0 0 auto; color: var(--green); font-weight: 700; text-decoration: none; border: 1px solid var(--green); border-radius: 999px; padding: 1px 10px; font-size: 12px; }
   .tabs button .n { font-size: 12px; font-weight: 600; margin-left: 5px; opacity: .75; }
   .tabs button:disabled { opacity: .35; }
+  /* v4.31：報名首頁「即將成班」、據點行事曆、據點資訊收合 */
+  .soon-h { display: flex; justify-content: space-between; align-items: baseline; margin: 2px 2px 2px; }
+  .soon-h b { font-size: 16px; color: var(--green-dark); }
+  .soon-h span { font-size: 12px; color: var(--muted); }
+  .soon-sub { font-size: 13px; color: var(--muted); margin: 0 2px 8px; }
+  .soon-row { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 10px; margin-bottom: 8px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+  .soon { flex: 0 0 76%; max-width: 280px; scroll-snap-align: start; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 5px; }
+  .soon .k { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 8px; align-self: flex-start; }
+  .soon .k.single { background: #fdf1e3; color: #8a4500; }
+  .soon .k.gathering { background: var(--green-light); color: var(--green-dark); }
+  .soon .t { font-weight: 700; color: var(--green-dark); font-size: 15px; }
+  .soon .m { font-size: 13px; color: #4f5d57; }
+  .soon .need { font-size: 14px; font-weight: 700; color: #8a4500; }
+  .soon .when { font-size: 12px; color: var(--muted); }
+  .soon .sg-bar i { background: #b85c00; }
+  .soon button.act { margin-top: 4px; align-self: stretch; padding: 10px; }
+  .soon-sec { margin: 6px 2px 8px; font-size: 16px; font-weight: 700; color: var(--green-dark); }
+  .vcal { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; margin-bottom: 12px; }
+  .vcal-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .vcal-h b { font-size: 15px; color: var(--text); }
+  .vcal-h button { border: 0; background: var(--green-light); color: var(--green-dark); width: 32px; height: 32px; border-radius: 50%; font-size: 18px; }
+  .vcal-h button:disabled { opacity: .3; }
+  .vcal-g { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; text-align: center; }
+  .vcal-g .wd { font-size: 12px; color: var(--muted); padding: 2px 0; }
+  .vcal-g .wd.we { color: #b3261e; }
+  .vcal-g button { border: 0; background: none; border-radius: 8px; min-height: 40px; padding: 4px 0; font-size: 14px; color: #9aa6a1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: inherit; }
+  .vcal-g button.has { color: var(--text); font-weight: 700; background: #f4f7f5; }
+  .vcal-g button.today { box-shadow: inset 0 0 0 1px #b9c6bf; }
+  .vcal-g button.sel { background: var(--green); color: #fff; }
+  .vcal-g .dots { display: flex; gap: 3px; height: 6px; }
+  .vcal-g .dots i { width: 6px; height: 6px; border-radius: 50%; }
+  .dot-class { background: #2b5ea7; } .dot-single { background: #b85c00; } .dot-gathering { background: #1e7a4c; }
+  .vcal-g button.sel .dot-class { background: #a9c3ee; } .vcal-g button.sel .dot-single { background: #ffc58a; } .vcal-g button.sel .dot-gathering { background: #a6e3c3; }
+  .vcal-lg { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); margin-top: 8px; align-items: center; }
+  .vcal-lg i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+  .vcal-lg button { margin-left: auto; border: 0; background: none; color: var(--green); font-weight: 700; font-size: 13px; padding: 0; }
+  .vcard .vtoggle { width: 100%; display: flex; justify-content: space-between; align-items: center; border: 0; background: none; padding: 0; margin-top: 8px; font-size: 13px; color: var(--green-dark); font-weight: 600; }
+  .item .kind { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .item .kind.class { color: #2b5ea7; } .item .kind.single { color: #8a4500; } .item .kind.gathering { color: var(--green-dark); }
   .item .acts { display: flex; gap: 8px; align-items: center; margin-left: auto; }
   .gcard .gt { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 0; }
   .gcard .gt .tm { font-size: 17px; font-weight: 800; color: var(--green-dark); margin-right: 2px; }
@@ -504,12 +543,14 @@
   <div class="crumbs" id="crumbs"></div>
   <div class="vcard hidden" id="venueCard"></div>
   <div class="tabs hidden" id="signupTabs">
+    <button type="button" id="tabAll">全部</button>
     <button type="button" id="tabClass" class="on">期制課</button>
     <button type="button" id="tabSingle">專項課</button>
     <button type="button" id="tabGather">球敘</button>
   </div>
   <div class="who-bar hidden" id="whoBar"></div>
   <div id="signupBanner" class="banner hidden"></div>
+  <div id="venueCal"></div>
   <div id="signupList"></div>
 </main>
 
@@ -1271,12 +1312,16 @@ function toast(text) {
 const signupState = { tab: 'class', data: null, region: '', venue: '', time: '', only: '', who: [], addFam: '' }; // v3.7：who＝報名對象（學員ID）；v4.18：addFam＝正在幫家人加報的課程／球敘ID
 
 /** v4.0：報名頁分頁（class 課程／single 專項課／gathering 球敘） */
-function tabOf(v) { return v === 'class' || v === 'single' ? v : 'gathering'; }
+function tabOf(v) { return v === 'class' || v === 'single' ? v : 'all'; } // v4.31：預設「全部」（選單帶的 tab=gathering 也是）
 function signupTitle() { const v = signupState.venue && venueById(signupState.venue); return v ? v.name : '報名'; } // v4.11
 function oneWho() { return signupState.tab !== 'gathering'; } // 課程、專項課一次一位
 
 async function openSignup(tab) {
-  signupState.tab = tabOf(tab); // v3：選單合併後預設球敘；v4.11：進到據點頁後先開這個分頁
+  // v4.31（業主 11/14）：報名頁先看「即將成班」→ 選據點 → 據點行事曆，預設「全部」（選單帶的 tab=gathering 也一樣）
+  signupState.tab = tabOf(tab);
+  signupState.day = '';
+  signupState.calMonth = '';
+  signupState.vcOpen = false;
   signupState.region = '';
   signupState.venue = '';
   signupState.time = '';
@@ -1396,7 +1441,7 @@ function itemsOfTab() {
 // ================================================================
 // v4.11：報名頁 ① 地區 → ② 據點 → ③ 據點頁（據點資訊＋期制課／專項課／球敘），每張卡片直接分享
 // ================================================================
-const TAB_LABEL = { class: '期制課', single: '專項課', gathering: '球敘' };
+const TAB_LABEL = { class: '期制課', single: '專項課', gathering: '球敘', all: '全部' };
 const TAB_ORDER = ['class', 'single', 'gathering'];
 
 function allSignupItems() {
@@ -1423,6 +1468,161 @@ function splitWhen(w) {
   const s = String(w || '');
   const i = s.indexOf(' ');
   return i > 0 ? { date: s.slice(0, i), time: s.slice(i + 1) } : { date: s, time: '' };
+}
+
+// ================================================================
+// v4.31（業主 11/14）：報名首頁「即將成班」、據點行事曆、全部分頁
+// ================================================================
+const SOON_DAYS = 3; // 成班決定／成團檢查在 3 天內
+const WD_TEXT = '一二三四五六日';
+function kindOf(it) { return it.kind === '球敘' ? 'gathering' : it.single ? 'single' : 'class'; }
+/** 這一筆在哪一天（期制課籌備中沒有日期 → ''） */
+function dateOf(it) { return it.kind === '球敘' ? (it.date || '') : it.single ? (it.date || '') : (it.startDate || ''); }
+function byDay(items) { return signupState.day ? items.filter((x) => dateOf(x) === signupState.day) : items; }
+function ymdText(key) {
+  if (!key) return '';
+  const [y, m, d] = key.split('-').map(Number);
+  return m + '/' + d + '（' + WD_TEXT.charAt((new Date(y, m - 1, d).getDay() + 6) % 7) + '）';
+}
+function todayKey() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+/** 還差幾人就成班／成團、決定時間在 3 天內的專項課與球敘 */
+function soonItems() {
+  const d = signupState.data || {};
+  const now = Date.now();
+  const lim = SOON_DAYS * 24 * 3600 * 1000;
+  const out = [];
+  (d.classes || []).forEach((c) => {
+    if (!c.single || c.formed || c.full || !(c.need > 0) || !c.decideAt) return;
+    if (c.decideAt <= now || c.decideAt - now > lim) return;
+    out.push({ it: c, kind: 'single', need: c.need, have: c.paidCount || 0, min: c.min || 0, at: c.decideAt, atText: c.decideText + ' 決定成班', unit: '成班' });
+  });
+  (d.gatherings || []).forEach((g) => {
+    const f = g.form;
+    if (!f || !f.min || f.at <= now || f.at - now > lim) return;
+    const s = gatherSeats(g);
+    if (s.full || s.count >= f.min) return;
+    out.push({ it: g, kind: 'gathering', need: f.min - s.count, have: s.count, min: f.min, at: f.at, atText: f.atText + ' 確認成團', unit: '成團' });
+  });
+  return out.sort((a, b) => a.need - b.need || a.at - b.at).slice(0, 10);
+}
+
+function renderSoon(list, nextTitle) {
+  const arr = soonItems();
+  if (!arr.length) return false;
+  list.appendChild(el('div', { class: 'soon-h' }, [el('b', { text: '即將成班・差一點就開' }), el('span', { text: SOON_DAYS + ' 天內' })]));
+  list.appendChild(el('div', { class: 'soon-sub', text: '報名就能幫忙湊滿人數，直接參加' + (arr.length > 1 ? '・左右滑看更多' : '') }));
+  const row = el('div', { class: 'soon-row' });
+  arr.forEach((x) => {
+    const it = x.it;
+    const go = () => {
+      signupState.venue = it.venueId;
+      signupState.region = regionOfVenue(venueById(it.venueId));
+      signupState.tab = x.kind;
+      signupState.only = it.id;
+      signupState.day = '';
+      renderSignup();
+      show('viewSignup', signupTitle());
+      window.scrollTo(0, 0);
+    };
+    const title = x.kind === 'single' ? (it.specName || it.title) : (it.venue + '・' + (it.typeLabel || it.title));
+    const sub = x.kind === 'single' ? it.when + '・' + it.venue : (it.timeLabel || it.when) + '・' + (it.fee ? money(it.fee) : '免費');
+    row.appendChild(el('div', { class: 'soon' }, [
+      el('span', { class: 'k ' + x.kind, text: x.kind === 'single' ? '專項課' + (it.level ? '・' + it.level : '') : '球敘' + (it.levelTag ? '・建議 ' + it.levelTag : '') }),
+      el('div', { class: 't', text: title }),
+      el('div', { class: 'm', text: sub }),
+      el('div', { class: 'sg-bar' }, [el('i', { style: 'width:' + Math.min(100, Math.round(x.have / Math.max(1, x.min) * 100)) + '%' })]),
+      el('div', { class: 'need', text: '目前 ' + x.have + ' 人・還差 ' + x.need + ' 人' + x.unit }),
+      el('div', { class: 'when', text: x.atText }),
+      el('button', { class: 'act', type: 'button', text: '我要報名', onclick: go }),
+    ]));
+  });
+  list.appendChild(row);
+  list.appendChild(el('div', { class: 'soon-sec', text: nextTitle }));
+  return true;
+}
+
+/** 據點行事曆：目前分頁（全部＝三種）的項目畫在月曆上；點日期只看那天 */
+function renderVenueCal() {
+  const box = $('venueCal');
+  box.innerHTML = '';
+  const tabs = signupState.tab === 'all' ? TAB_ORDER : [signupState.tab];
+  const items = [];
+  tabs.forEach((k) => itemsAt(signupState.venue, k).forEach((it) => { if (dateOf(it)) items.push(it); }));
+  if (!items.length) { signupState.day = ''; return; }
+  const byDate = {};
+  items.forEach((it) => { const k = dateOf(it); (byDate[k] = byDate[k] || {})[kindOf(it)] = 1; });
+  if (signupState.day && !byDate[signupState.day]) signupState.day = '';
+  const today = todayKey();
+  const months = Array.from(new Set(Object.keys(byDate).map((k) => k.slice(0, 7)))).sort();
+  let mon = signupState.calMonth;
+  if (signupState.day) mon = signupState.day.slice(0, 7);
+  if (months.indexOf(mon) < 0) mon = months.find((m) => m >= today.slice(0, 7)) || months[0];
+  signupState.calMonth = mon;
+  const mi = months.indexOf(mon);
+  const [y, m] = mon.split('-').map(Number);
+  const nav = (dir) => { signupState.calMonth = months[mi + dir]; signupState.day = ''; renderSignup(); };
+  const cal = el('div', { class: 'vcal' }, [
+    el('div', { class: 'vcal-h' }, [
+      el('button', { type: 'button', 'aria-label': '上個月', text: '‹', disabled: mi <= 0, onclick: () => nav(-1) }),
+      el('b', { text: y + ' 年 ' + m + ' 月' }),
+      el('button', { type: 'button', 'aria-label': '下個月', text: '›', disabled: mi >= months.length - 1, onclick: () => nav(1) }),
+    ]),
+  ]);
+  const g = el('div', { class: 'vcal-g' });
+  WD_TEXT.split('').forEach((w, i) => g.appendChild(el('div', { class: 'wd' + (i >= 5 ? ' we' : ''), text: w })));
+  const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+  for (let i = 0; i < lead; i++) g.appendChild(el('div', {}));
+  const days = new Date(y, m, 0).getDate();
+  for (let d = 1; d <= days; d++) {
+    const key = mon + '-' + String(d).padStart(2, '0');
+    const has = byDate[key];
+    const kinds = has ? TAB_ORDER.filter((k) => has[k]) : [];
+    g.appendChild(el('button', {
+      type: 'button', disabled: !has,
+      class: (has ? 'has' : '') + (key === today ? ' today' : '') + (key === signupState.day ? ' sel' : ''),
+      'aria-label': ymdText(key) + (has ? '：' + kinds.map((k) => TAB_LABEL[k]).join('、') : ''),
+      onclick: () => { signupState.day = signupState.day === key ? '' : key; renderSignup(); },
+    }, [el('span', { text: String(d) }), el('span', { class: 'dots' }, kinds.map((k) => el('i', { class: 'dot-' + k })))]));
+  }
+  cal.appendChild(g);
+  const lg = el('div', { class: 'vcal-lg' });
+  if (signupState.tab === 'all') TAB_ORDER.forEach((k) => lg.appendChild(el('span', {}, [el('i', { class: 'dot-' + k }), tx(TAB_LABEL[k])])));
+  else lg.appendChild(el('span', { text: '點日期只看那天' }));
+  if (signupState.day) lg.appendChild(el('button', { type: 'button', text: '看全部日期', onclick: () => { signupState.day = ''; renderSignup(); } }));
+  cal.appendChild(lg);
+  box.appendChild(cal);
+}
+
+/** 全部分頁：期制課、專項課、球敘依日期排在一起；籌備中的期制課（還沒有日期）放最後 */
+function renderAllList() {
+  const list = $('signupList');
+  const all = TAB_ORDER.reduce((a, k) => a.concat(itemsAt(signupState.venue, k)), []);
+  const dated = byDay(all.filter((x) => dateOf(x))).sort((a, b) => (a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0));
+  const undated = signupState.day ? [] : all.filter((x) => !dateOf(x));
+  if (!dated.length && !undated.length) return list.appendChild(el('div', { class: 'empty', text: signupState.day ? '這天沒有課程或球敘' : '這個據點目前沒有開放報名的課程或球敘' }));
+  if (dated.some((x) => kindOf(x) === 'single')) {
+    list.appendChild(el('div', { class: 'note', style: 'margin:0 2px 10px' }, [
+      tx('專項課 ' + ((signupState.data.singleRule || {}).min || 3) + ' 人成班，上課方式與退費規則請看'),
+      el('button', { class: 'link', type: 'button', style: 'display:inline;padding:0 4px;width:auto;margin:0', text: '「專項課」分頁', onclick: () => { signupState.tab = 'single'; renderSignup(); } }),
+    ]));
+  }
+  let day = '';
+  dated.forEach((it) => {
+    const k = dateOf(it);
+    if (k !== day) { day = k; list.appendChild(el('h2', { class: 'sec', text: ymdText(k) })); }
+    const kind = kindOf(it);
+    const card = kind === 'gathering' ? gatherCard(it) : kind === 'single' ? singleCard(it) : classCourtCard(it);
+    card.insertBefore(el('div', { class: 'kind ' + kind, text: TAB_LABEL[kind] }), card.firstChild);
+    list.appendChild(card);
+  });
+  if (undated.length) {
+    list.appendChild(el('h2', { class: 'sec', text: '期制課（成班後通知開課日）' }));
+    undated.forEach((it) => list.appendChild(classCourtCard(it)));
+  }
 }
 
 function renderSignup() {
@@ -1456,6 +1656,7 @@ function renderSignup() {
   }
 
   const atVenue = !!signupState.venue;
+  $('venueCal').innerHTML = ''; // v4.31
   $('venueCard').classList.toggle('hidden', !atVenue);
   $('signupTabs').classList.toggle('hidden', !atVenue);
   $('pageTitle').textContent = signupTitle();
@@ -1465,6 +1666,9 @@ function renderSignup() {
     list.appendChild(el('div', { class: 'empty', text: '目前沒有開放報名的課程或球敘。每月 25 日中午開放下個月的課表。' }));
     return;
   }
+
+  // v4.31：最上面「即將成班・差一點就開」（第一個畫面才顯示）
+  if (!atVenue && (!signupState.region || regions.length === 1) && renderSoon(list, signupState.region ? '選擇據點' : '選擇地區')) crumbs.innerHTML = '';
 
   // ① 地區
   if (!signupState.region) {
@@ -1480,7 +1684,7 @@ function renderSignup() {
   if (!atVenue) {
     inRegion.forEach((v) => {
       const sub = [v.place && v.place !== v.name ? v.place : '', countsText(countsAt(v.id))].filter(Boolean).join('｜');
-      list.appendChild(pickRow(v.name + (v.fav ? '　★' : ''), (v.fav ? '常去・' : '') + sub, () => { signupState.venue = v.id; signupState.only = ''; renderSignup(); }));
+      list.appendChild(pickRow(v.name + (v.fav ? '　★' : ''), (v.fav ? '常去・' : '') + sub, () => { signupState.venue = v.id; signupState.only = ''; signupState.day = ''; signupState.calMonth = ''; signupState.vcOpen = false; renderSignup(); }));
     });
     return;
   }
@@ -1488,8 +1692,14 @@ function renderSignup() {
   // ③ 據點頁
   renderVenueCard(venueById(signupState.venue));
   const c = countsAt(signupState.venue);
-  if (!c[signupState.tab]) signupState.tab = TAB_ORDER.find((k) => c[k]) || 'gathering';
-  [['class', 'tabClass'], ['single', 'tabSingle'], ['gathering', 'tabGather']].forEach(([k, id]) => {
+  c.all = TAB_ORDER.reduce((t, k) => t + c[k], 0);
+  // v4.31：全部分頁點了某一筆（選擇球面、分享連結）→ 切到那一筆的分頁
+  if (signupState.tab === 'all' && signupState.only) {
+    const it = allSignupItems().find((x) => x.id === signupState.only);
+    if (it) signupState.tab = kindOf(it);
+  }
+  if (!c[signupState.tab]) signupState.tab = 'all';
+  [['all', 'tabAll'], ['class', 'tabClass'], ['single', 'tabSingle'], ['gathering', 'tabGather']].forEach(([k, id]) => {
     const b = $(id);
     b.classList.toggle('on', signupState.tab === k);
     b.disabled = !c[k];
@@ -1498,6 +1708,8 @@ function renderSignup() {
     b.appendChild(el('span', { class: 'n', text: String(c[k]) }));
   });
   renderWhoBar();
+  if (!signupState.only) renderVenueCal(); // v4.31：據點行事曆
+  if (signupState.tab === 'all') return renderAllList();
   if (signupState.tab === 'single') return renderSingleTab();
   if (signupState.tab === 'class') return renderClassList();
   return renderGatherList();
@@ -1508,6 +1720,15 @@ function renderVenueCard(v) {
   const box = $('venueCard');
   box.innerHTML = '';
   if (!v) return;
+  // v4.31：據點資訊預設收起來（名稱一行），點「地點・交通・照片」才展開
+  if (!signupState.vcOpen) {
+    const has = v.photo || v.address || v.traffic || (v.place && v.place !== v.name) || v.map;
+    box.appendChild(el('div', { class: 'vb' }, [
+      el('div', { class: 'vn', text: v.name }, [v.kind ? el('span', { class: 'badge', text: v.kind }) : null]),
+      has ? el('button', { class: 'vtoggle', type: 'button', onclick: () => { signupState.vcOpen = true; renderVenueCard(v); } }, [el('span', { text: '地點・交通・照片' }), el('span', { text: '展開 ▾' })]) : null,
+    ]));
+    return;
+  }
   if (v.photo) {
     const img = el('img', { src: v.photo, alt: v.name + ' 場地照片', loading: 'lazy', referrerpolicy: 'no-referrer' });
     img.addEventListener('error', () => img.remove());
@@ -1520,6 +1741,7 @@ function renderVenueCard(v) {
     v.place && v.place !== v.name ? line('地點', v.place) : null,
     line('地址', v.address, map) || (map ? el('div', { class: 'vl' }, [el('b', { text: '地址' }), map]) : null),
     line('交通', v.traffic),
+    el('button', { class: 'vtoggle', type: 'button', onclick: () => { signupState.vcOpen = false; renderVenueCard(v); } }, [el('span', { text: '' }), el('span', { text: '收起 ▴' })]),
   ]));
 }
 
@@ -1531,7 +1753,7 @@ function onlyBack(list, label) {
 /** 期制課 */
 function renderClassList() {
   const list = $('signupList');
-  let items = itemsAt(signupState.venue, 'class');
+  let items = byDay(itemsAt(signupState.venue, 'class'));
   if (signupState.only && items.some((x) => x.id === signupState.only)) {
     if (items.length > 1) onlyBack(list, '這個據點的全部期制課');
     items = items.filter((x) => x.id === signupState.only);
@@ -1549,9 +1771,9 @@ function renderGatherList() {
     if (g) return renderGatherCourts(g, items.length > 1);
     signupState.only = '';
   }
-  if (!items.length) return list.appendChild(el('div', { class: 'empty', text: '這個據點近期沒有開放報名的球敘' }));
+  if (!byDay(items).length) return list.appendChild(el('div', { class: 'empty', text: signupState.day ? '這天沒有球敘' : '這個據點近期沒有開放報名的球敘' }));
   let day = '';
-  items.forEach((g) => {
+  byDay(items).forEach((g) => {
     const w = splitWhen(g.timeLabel || g.when);
     if (w.date !== day) { day = w.date; list.appendChild(el('h2', { class: 'sec', text: w.date })); }
     list.appendChild(gatherCard(g));
@@ -1693,7 +1915,7 @@ function renderSingleTab() {
   sf.venue = ''; // v4.11：已在據點頁，不再篩據點
   row('建議程度', 'level', levelOpts);
   row('專項', 'spec', specOpts);
-  const shown = all.filter((x) => (!sf.venue || x.venueId === sf.venue) && (!sf.level || (x.levelId || '') === sf.level) && (!sf.spec || (x.specId || '') === sf.spec));
+  const shown = byDay(all).filter((x) => (!sf.venue || x.venueId === sf.venue) && (!sf.level || (x.levelId || '') === sf.level) && (!sf.spec || (x.specId || '') === sf.spec)); // v4.31：行事曆選的日期
   if (!shown.length) {
     list.appendChild(el('div', { class: 'empty', text: '沒有符合條件的專項課' }));
     return;
@@ -2176,6 +2398,7 @@ function signupDone(it, court, d) {
     friendText: '付款期限、候補遞補與提醒都用 LINE 通知（家人的通知也會傳給你），加入官方帳號才收得到。' });
 }
 
+$('tabAll').addEventListener('click', () => { signupState.tab = 'all'; signupState.only = ''; renderSignup(); }); // v4.31
 $('tabClass').addEventListener('click', () => { signupState.tab = 'class'; signupState.only = ''; renderSignup(); }); // v4.11：留在同一個據點
 $('tabSingle').addEventListener('click', () => { signupState.tab = 'single'; signupState.only = ''; renderSignup(); });
 $('tabGather').addEventListener('click', () => { signupState.tab = 'gathering'; signupState.only = ''; renderSignup(); });
