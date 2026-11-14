@@ -720,7 +720,7 @@ function singleRuleLines(rule, credit) {
   return [
     ['👥', [tx('每堂 '), mk(rule.min + ' 人成班'), tx('、' + rule.max + ' 人額滿')]],
     ['⏰', [tx('上課前 '), mk(rule.days + ' 天 ' + rule.time), tx(' 依「已付款」人數決定是否開課（' + rule.max + ' 人付清提早成班）')]],
-    ['🏓', [tx('上課當天 '), mk(rule.min + '–' + small + ' 人'), tx('：教練指導 1 小時，第 2 小時為練球時間；'), mk((small + 1) + ' 人以上'), tx('：教練指導完整 2 小時（新手體驗課除外）')]],
+    ['🏓', [tx('上課當天 '), mk(rule.min + '–' + small + ' 人'), tx('：教練指導 1 小時，第 2 小時為練球時間；'), mk((small + 1) + ' 人以上'), tx('：教練指導完整 2 小時')]],
     ['↩️', '成班前可自己取消（已付款轉課程抵用金）；未成班可改報其他堂、轉抵用金或退款。成班後不退費，可請客服換人上課。'],
     credit > 0 ? ['💰', [tx('你有課程抵用金 '), mk(money(credit)), tx('，報名時自動折抵。')]] : null,
   ];
@@ -1504,8 +1504,9 @@ function soonItems() {
     const f = g.form;
     if (!f || !f.min || f.at <= now || f.at - now > lim) return;
     const s = gatherSeats(g);
-    if (s.full || s.count >= f.min) return;
-    out.push({ it: g, kind: 'gathering', need: f.min - s.count, have: s.count, min: f.min, at: f.at, atText: f.atText + ' 確認成團', unit: '成團' });
+    const have = s.count + (f.out || 0); // v4.33：名單外報名也算
+    if (s.full || have >= f.min) return;
+    out.push({ it: g, kind: 'gathering', need: f.min - have, have: have, min: f.min, at: f.at, atText: f.atText + ' 確認成團', unit: '成團' });
   });
   return out.sort((a, b) => a.need - b.need || a.at - b.at).slice(0, 10);
 }
