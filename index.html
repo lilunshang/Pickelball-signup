@@ -666,7 +666,7 @@ const app = { idToken: '', params: {}, init: null, src: '', friend: null, view: 
 // v4.35：開啟計時 — 手機端各段花多久（從網頁開始載入算起，毫秒），開完頁後在背景回報一次（不擋畫面）
 //   伺服器 init 回傳 perf＝1 才回報（指令碼屬性 PERF_LOG＝off 可關閉）；送出類動作（報名、取消…）也回報來回時間
 // ================================================================
-const APP_VER = '4.39';
+const APP_VER = '4.40';
 const PERF = { t: {}, srv: {}, first: '', tok: 0, hop: 0, on: false };
 function pmark(k) { try { if (!(k in PERF.t)) PERF.t[k] = Math.round(performance.now()); } catch (e) { /* 計時失敗不影響功能 */ } }
 function perfSend(item, x) {
@@ -948,7 +948,7 @@ async function send(button, payload, busyText) {
       try {
         const r = await callGas(payload, 20000);
         if (r.ok) {
-          perfSend('act:' + payload.action, { back: Math.round(performance.now() - t0), srv: r.srvMs }); // v4.35
+          perfSend('act:' + payload.action, { back: Math.round(performance.now() - t0), srv: r.srvMs, marks: r.srvMarks }); // v4.35；v4.40：伺服器各段
           return { ok: true, data: r };
         }
         if (r.error !== 'BUSY') return { ok: false, error: r.error, message: (r.message || '處理失敗') + (SHOW_ERROR_CODE ? '（' + r.error + '）' : '') };
@@ -2256,7 +2256,8 @@ function gatherCourtCard(g, ct) {
   const note = notes.length ? el('div', { class: 'note' + (bad.length ? ' warn' : ''), style: 'margin-top:6px;white-space:pre-line', text: notes.join('\n') }) : null;
   return el('div', { class: 'item' + (myM && myM.courtId === ct.id && !solo ? ' mycourt' : '') }, [
     el('div', { class: 't', text: ct.name }), // v4.11：類型、費用、說明移到上方整場資訊
-    ct.members.length ? el('div', { class: 'members' }, ct.members.map(memberChip)) : el('div', { class: 'note', style: 'margin-top:6px', text: '還沒有人報名，搶頭香！' }),
+    ct.members.length ? el('div', { class: 'members' }, ct.members.map(memberChip))
+      : el('div', { class: 'note', style: 'margin-top:6px', text: ct.hid && ct.count ? '已有 ' + ct.count + ' 人報名（名單載入中…）' : '還沒有人報名，搶頭香！' }), // v4.40：公開快照不帶名單
     note,
     el('div', { class: 'foot' }, [
       el('span', { class: 'seat' + (ct.full ? ' full' : ''), text: '已報名 ' + ct.count + (ct.cap ? '／' + ct.cap : '') + (ct.full ? '・已額滿（可候補）' : '') }),
@@ -2428,6 +2429,7 @@ function openConfirm(it, court, payload, pv) {
   $('btnConfirmBack').textContent = multi ? '返回修改' : '返回';
   $('btnConfirmBack').onclick = () => { show('viewSignup', signupTitle()); };
   show('viewConfirm', '確認報名');
+  wakeUp(); // v4.40
 }
 
 /** v3.9：名額保留期限說明（球敘開始／課程第一堂前 6 小時） */
@@ -2615,6 +2617,7 @@ function openPay(sel, myData) {
   banner('payBanner', app.init.paymentInfo ? '付款方式\n' + app.init.paymentInfo : '');
   paySum();
   show('viewPay', '回報付款');
+  wakeUp(); // v4.40
   window.scrollTo(0, 0);
 }
 function payPicked() { return (myState.owing || []).filter((it) => payState.pick[it.signupId]); }
@@ -3024,6 +3027,7 @@ function openRacketEdit(box, it) {
 }
 
 async function doCancel(btn, it) {
+  wakeUp(); // v4.40：選原因或再按一次確認的這幾秒先喚醒
   let why = '';
   if ((app.cancelWhy || []).length && it.status !== '候補') {
     why = await askWhy(it); // v4.0：取消原因（選項）
@@ -3517,6 +3521,16 @@ function warmUp(page, wantsOptions) {
   } catch (e) { /* 預熱失敗不影響開啟 */ }
 }
 
+/** v4.40：送出前喚醒 — 進到確認報名／回報付款／取消原因畫面時先叫伺服器把試算表載入（不帶身分、不等回應、20 秒內只送一次） */
+let wakeAt = 0;
+function wakeUp() {
+  try {
+    if (Date.now() - wakeAt < 20000) return;
+    wakeAt = Date.now();
+    fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'warm', wake: true }), keepalive: true }).catch(() => {});
+  } catch (e) { /* 喚醒失敗不影響操作 */ }
+}
+
 function lsGet(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 空間不足或無痕模式：略過 */ } }
 function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* 略過 */ } }
@@ -3692,12 +3706,52 @@ async function main() {
   const startTab = app.tab || '';
   if (drawn) { PERF.first = '上次畫面'; pmark('paint'); } // v4.35
 
+  // v4.27 方案 A：報名頁先用伺服器預先算好的場次（quick，不讀試算表），完整資料（我的報名狀態、抵用金）到了再換上
+  let initDone = false;
+  const applyQuick = (q) => {
+    try {
+      const opt = mergeMine(q.options, signupState.data || readOptionsCache());
+      if (!app.init || !app.init.student) app.init = q;
+      if (drawn) {
+        // 已畫出手機上次的畫面：換成較新的場次與人數，保留使用者目前停留的步驟（仍顯示「更新中」直到完整資料到）
+        if (app.view !== 'viewSignup') return;
+        signupState.data = opt;
+        if (deep && signupState.only) return;
+        return renderSignup();
+      }
+      setBooting(true); // 送出類按鈕等完整資料到了才能按
+      signupState.data = opt;
+      if (deep) applyTarget(app.params.type, app.params.id, opt);
+      else {
+        signupState.tab = tabOf(app.params.tab);
+        signupState.region = ''; signupState.venue = ''; signupState.time = ''; signupState.only = '';
+        renderSignup();
+        show('viewSignup', signupTitle());
+      }
+      setStale(true);
+      drawn = true; // 畫成功才算（完整資料到時保留目前步驟）；畫失敗 → 照舊等完整資料
+    } catch (e) {
+      console.warn('quick', e);
+      if (!drawn) setBooting(false);
+    }
+  };
   // ② LINE 登入：上次的 ID Token 還有效就先用它送 init，同時在背景做 liff.init
   const tok = firstHop ? '' : savedToken();
   PERF.tok = tok ? 1 : 0; PERF.hop = firstHop ? 1 : 0; // v4.35
   if (tok) { app.idToken = tok; app.early = true; }
   // v4.9：要等 LINE 登入 → 先叫伺服器把這一頁要用的表讀進快取，登入完送 init 時就不用再等讀表
   if (!tok) warmUp(page, wantsOptions);
+  // v4.40：手機上沒有上次畫面、也沒有可用的憑證（第一次開啟）→ 不等 LINE 登入，先拿公開快照畫出報名頁
+  //        （沒有報名者名單與個人資料；按鈕等完整資料到了才能按）
+  if (!tok && !drawn && wantsOptions) {
+    callGasOnce({ action: 'quick', pub: true }, 9000).then((q) => {
+      if (q && q.ok) { pmark('quick'); PERF.srv.quick = q.srvMs; }
+      if (!initDone && !drawn && q && q.ok && q.options) {
+        applyQuick(q);
+        if (drawn && !PERF.first) { PERF.first = '公開快照'; pmark('paint'); }
+      }
+    }).catch(() => {});
+  }
   if (!drawn) setLoadStep('連接 LINE…', true);
   const liffP = initLiff();
   if (!tok && !(await liffP)) return;
@@ -3728,35 +3782,6 @@ async function main() {
     else app.geoP = Promise.resolve(loc); // 交給 openCheckin 顯示定位問題
   }
 
-  // v4.27 方案 A：報名頁先用伺服器預先算好的場次（quick，不讀試算表），完整資料（我的報名狀態、抵用金）到了再換上
-  let initDone = false;
-  const applyQuick = (q) => {
-    try {
-      const opt = mergeMine(q.options, signupState.data || readOptionsCache());
-      if (!app.init || !app.init.student) app.init = q;
-      if (drawn) {
-        // 已畫出手機上次的畫面：換成較新的場次與人數，保留使用者目前停留的步驟（仍顯示「更新中」直到完整資料到）
-        if (app.view !== 'viewSignup') return;
-        signupState.data = opt;
-        if (deep && signupState.only) return;
-        return renderSignup();
-      }
-      setBooting(true); // 送出類按鈕等完整資料到了才能按
-      signupState.data = opt;
-      if (deep) applyTarget(app.params.type, app.params.id, opt);
-      else {
-        signupState.tab = tabOf(app.params.tab);
-        signupState.region = ''; signupState.venue = ''; signupState.time = ''; signupState.only = '';
-        renderSignup();
-        show('viewSignup', signupTitle());
-      }
-      setStale(true);
-      drawn = true; // 畫成功才算（完整資料到時保留目前步驟）；畫失敗 → 照舊等完整資料
-    } catch (e) {
-      console.warn('quick', e);
-      if (!drawn) setBooting(false);
-    }
-  };
   if (wantsOptions) callGas({ action: 'quick' }, 9000).then((q) => {
     if (q && q.ok) { pmark('quick'); PERF.srv.quick = q.srvMs; } // v4.35
     if (!initDone && q && q.ok && q.options) {
@@ -3773,7 +3798,7 @@ async function main() {
   if (!d) return;
   const isNew = !!d.isNew;
   app.init = d;
-  PERF.on = !!d.perf; PERF.srv.init = d.srvMs; // v4.35
+  PERF.on = !!d.perf; PERF.srv.init = d.srvMs; PERF.srv.marks = d.srvMarks; // v4.35；v4.40
   saveBoot(d);
   if (d.options) { saveOptionsCache(d.options); app.optAt = Date.now(); if (!drawn || !wantsOptions) signupState.data = d.options; } // v3.10：切到報名頁直接用
   if (d.pages) Object.keys(d.pages).forEach((k) => { if (d.pages[k] && d.pages[k].ok !== false) savePage(k, d.pages[k]); });
