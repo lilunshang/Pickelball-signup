@@ -666,7 +666,7 @@ const app = { idToken: '', params: {}, init: null, src: '', friend: null, view: 
 // v4.35：開啟計時 — 手機端各段花多久（從網頁開始載入算起，毫秒），開完頁後在背景回報一次（不擋畫面）
 //   伺服器 init 回傳 perf＝1 才回報（指令碼屬性 PERF_LOG＝off 可關閉）；送出類動作（報名、取消…）也回報來回時間
 // ================================================================
-const APP_VER = '4.38';
+const APP_VER = '4.39';
 const PERF = { t: {}, srv: {}, first: '', tok: 0, hop: 0, on: false };
 function pmark(k) { try { if (!(k in PERF.t)) PERF.t[k] = Math.round(performance.now()); } catch (e) { /* 計時失敗不影響功能 */ } }
 function perfSend(item, x) {
@@ -784,6 +784,13 @@ function racketStepper(value, max, onChange) {
   plus.addEventListener('click', () => { if (v < max && onChange(v + 1) !== false) { v += 1; sync(); } });
   sync();
   return el('span', { class: 'rk' }, [el('span', { text: '租球拍' }), minus, num, plus, el('span', { text: '支' })]);
+}
+/** v4.39：課程借球拍（免費）— 勾選；onChange(1／0) 回傳 false 時不變 */
+function racketCheck(checked, onChange) {
+  const cb = el('input', { type: 'checkbox' });
+  cb.checked = !!checked;
+  cb.addEventListener('change', () => { if (onChange(cb.checked ? 1 : 0) === false) cb.checked = !cb.checked; });
+  return el('label', { class: 'cf-credit', style: 'margin:0' }, [cb, el('span', { text: '🏓 需要借球拍（免費）' })]);
 }
 function normalizePhone(v) {
   let s = String(v || '').replace(/\D/g, '');
@@ -2052,6 +2059,7 @@ function singleCard(it) {
     el('div', { class: 't', text: it.specName || it.title }, [it.level ? el('span', { class: 'badge', text: '建議 ' + it.level }) : null]),
     el('div', { class: 's', text: it.when }),
     it.courtName ? el('div', { class: 'm', text: it.courtName }) : null, // v4.11：據點、地址、照片已在上方據點資訊卡
+    it.racket && it.racket.on && it.racket.left !== 0 ? el('div', { class: 'note', text: '🏓 可借球拍（免費，報名時勾選）' }) : null, // v4.39
   ];
   if (it.specNote) rows.push(el('div', { class: 'note', style: 'margin-top:6px;white-space:pre-line;color:#444', text: it.specNote }));
   // 成班進度
@@ -2334,7 +2342,7 @@ function openConfirm(it, court, payload, pv) {
   const ids = pv.results.map((x) => x.id);
   banner('cfBanner', it.title + '\n' + (it.timeLabel || it.when || '') + (multi ? '\n名額依勾選順序分配，請確認（以送出後的結果為準）：' : '\n請確認報名內容，按下方按鈕才會送出：'));
   // v4.3：球拍租借（每人各自選；已報名的人合計不超過庫存，候補遞補時再看庫存）
-  const rk = it.kind === '球敘' && it.racket && it.racket.on ? it.racket : null;
+  const rk = it.racket && it.racket.on ? it.racket : null; // v4.39：課程也能借（rk.free）
   const rkWant = {};
   const rkLeft = rk ? (rk.left < 0 ? Infinity : rk.left) : 0;
   if (court) list.appendChild(spotBox('🎾', '報名球面：' + court.name, '到場請到這一面報到', false)); // v4.27 UI
@@ -2345,9 +2353,10 @@ function openConfirm(it, court, payload, pv) {
     const tag = x.status === '已報名' ? el('span', { class: 'badge', text: '可報名' })
       : x.status === '候補' ? el('span', { class: 'badge wait', text: '進候補' })
         : el('span', { class: 'badge warn', text: '不報名' });
-    const step = rk && x.status && rk.max > 0 && (x.status === '候補' || rkLeft > 0) ? racketStepper(0, rk.max, (nv) => {
+    const rkPick = (fn) => (rk.free ? racketCheck(false, fn) : racketStepper(0, rk.max, fn)); // v4.39
+    const step = rk && x.status && rk.max > 0 && (x.status === '候補' || rkLeft > 0) ? rkPick((nv) => {
       const before = rkWant[x.id] || 0;
-      if (x.status === '已報名' && nv > before && rkActive() + 1 > rkLeft) { toast('這場球拍只剩 ' + rkLeft + ' 支'); return false; }
+      if (x.status === '已報名' && nv > before && rkActive() + 1 > rkLeft) { toast((rk.free ? '這堂課的球拍只剩 ' : '這場球拍只剩 ') + rkLeft + ' 支'); return false; }
       rkWant[x.id] = nv;
       paySum();
       return true;
@@ -2357,7 +2366,8 @@ function openConfirm(it, court, payload, pv) {
       tag,
     ]));
   });
-  if (rk) list.appendChild(el('div', { class: 'note', style: 'padding:6px 0' , text: '球拍每支 ' + money(rk.fee) + '，不收押金；' + (rkLeft === Infinity ? '' : rkLeft > 0 ? '這場還有 ' + rkLeft + ' 支可租；' : '這場的球拍已租完；') + '開始前可在「我的報名」改支數。' }));
+  if (rk && rk.free) list.appendChild(el('div', { class: 'note', style: 'padding:6px 0', text: rkLeft > 0 ? '課程有提供球拍，需要的話請勾選（免費）；上課前可在「我的報名」更改。' + (rkLeft === Infinity ? '' : '目前還有 ' + rkLeft + ' 支。') : '這堂課的球拍已經借完了，請自備球拍。' })); // v4.39
+  else if (rk) list.appendChild(el('div', { class: 'note', style: 'padding:6px 0' , text: '球拍每支 ' + money(rk.fee) + '，不收押金；' + (rkLeft === Infinity ? '' : rkLeft > 0 ? '這場還有 ' + rkLeft + ' 支可租；' : '這場的球拍已租完；') + '開始前可在「我的報名」改支數。' }));
   // v3.7.2：籌備中課程先付首堂；候補暫不需付款
   const fee = it.kind === '課程' && it.preopen ? (Number(it.firstFee) || 0) : (Number(it.fee) || 0);
   const n = pv.results.filter((x) => x.status === '已報名').length;
@@ -2452,7 +2462,8 @@ function signupDone(it, court, d) {
         { icon: '⏳', wait: true, next: myBtn, share: share, friendText: '遞補成功時要在期限內付款，通知只會用 LINE 傳送。沒加入官方帳號會收不到，名額可能直接給下一位。' });
     }
     const lines = [who + it.title, it.timeLabel || it.when];
-    if (x.rackets) lines.push('租球拍 ' + x.rackets + ' 支（' + money(x.racketFee) + '，已含在應繳）'); // v4.3
+    if (x.rackets && (x.racketFree || it.kind === '課程')) lines.push('🏓 借球拍：已登記（免費，上課時在現場領取）'); // v4.39
+    else if (x.rackets) lines.push('租球拍 ' + x.rackets + ' 支（' + money(x.racketFee) + '，已含在應繳）'); // v4.3
     if (x.credit) lines.push('已用先前已付款項折抵 ' + money(x.credit));
     if (x.creditUsed) lines.push('已用課程抵用金折抵 ' + money(x.creditUsed)); // v4.0
     if (x.creditUsed && signupState.data) signupState.data.credit = Math.max(0, (Number(signupState.data.credit) || 0) - x.creditUsed);
@@ -2479,7 +2490,7 @@ function signupDone(it, court, d) {
       total += x.amount || 0;
       deadline = deadline || x.deadline;
       release = release || x.release;
-      lines.push('✓ ' + name + '：已報名' + (x.amount ? '（' + money(x.amount) + (x.rackets ? '，含租拍 ' + x.rackets + ' 支' : '') + '）' : x.creditUsed ? '（抵用金付清）' : ''));
+      lines.push('✓ ' + name + '：已報名' + (x.amount ? '（' + money(x.amount) + (x.rackets && it.kind !== '課程' ? '，含租拍 ' + x.rackets + ' 支' : '') + '）' : x.creditUsed ? '（抵用金付清）' : '') + (x.rackets && it.kind === '課程' ? '・借球拍' : ''));
     } else if (x.status === '候補') lines.push('⏳ ' + name + '：候補第 ' + x.rank + ' 位');
     else lines.push('－ ' + name + '：未報名（' + x.note + '）');
   });
@@ -2770,6 +2781,16 @@ function myCard(it, hours) {
       notes.push(rkBox);
     }
     extra = notes.length ? el('div', {}, notes) : null;
+  } else if (it.racketFree && (it.racketEdit || it.rackets || it.racketNote)) {
+    // v4.39：課程借球拍（免費）— 直接切換，不用選支數
+    const kids = [el('span', { class: 'note', text: it.rackets ? '🏓 已登記借球拍（免費）' : '🏓 沒有借球拍' })];
+    if (it.racketNote) kids.push(el('span', { class: 'note', text: it.racketNote }));
+    else if (it.racketEdit && (it.rackets || it.racketMax > 0)) {
+      const b = el('button', { class: 'act alt', type: 'button', text: it.rackets ? '不借了' : '借球拍' });
+      b.addEventListener('click', () => toggleClassRacket(b, it));
+      kids.push(b);
+    } else if (it.racketEdit && !it.rackets) kids.push(el('span', { class: 'note', text: '球拍已借完，請自備' }));
+    extra = el('div', {}, [extra, el('div', { class: 'rk-row' }, kids)]);
   }
   return el('div', { class: 'item' }, [
     el('div', { class: 't' }, [whoTag(it.who), el('span', { text: it.title }), statusBadge(it)]),
@@ -2963,6 +2984,15 @@ function courseRow(x, who, hours) {
     ]),
     act ? act.right : badge,
   ]);
+}
+
+/** v4.39：課程借球拍 — 借／不借 直接切換 */
+async function toggleClassRacket(btn, it) {
+  const want = it.rackets ? 0 : 1;
+  const r = await send(btn, { action: 'racket', signupId: it.signupId, n: want }, '儲存中…');
+  if (!r.ok) return banner('myBanner', r.message, true);
+  if (r.data.my) { savePage('my', r.data.my); renderMy(r.data.my, false); } else await openMy(true);
+  banner('myBanner', (it.who && !it.who.self ? '【' + it.who.name + '】' : '') + it.title + '：' + (r.data.n ? '已登記借球拍（免費），上課時在現場領取。' : '已改成不借球拍。'));
 }
 
 /** v4.3：在卡片上改租拍支數（－ n ＋ 與 儲存） */
